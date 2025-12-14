@@ -11,7 +11,7 @@ catch {
 
 # Install Requirements
 Write-Host "Installing/Updating Dependencies..." -ForegroundColor Yellow
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 
 # Run PyInstaller
 Write-Host "Building Executable..." -ForegroundColor Yellow

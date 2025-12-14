@@ -3,3 +3,5 @@ flask-sqlalchemy
 flask-cors
 openpyxl
 pyinstaller
+PyQt5
+PyQtWebEngine

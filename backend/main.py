@@ -354,50 +354,59 @@ def delete_category(id):
     db.session.commit()
     return jsonify({"message": "Deleted"})
 
-# Auto-Shutdown Logic
-import threading
-import time
-
-last_active_time = time.time()
-shutdown_lock = threading.Lock()
-
-@app.route('/heartbeat', methods=['POST'])
-def heartbeat():
-    global last_active_time
-    with shutdown_lock:
-        last_active_time = time.time()
-    return jsonify({"status": "ok"})
-
-def monitor_activity():
-    """Checks for heartbeat. If no heartbeat for 5 seconds, shutdown."""
-    logging.info("Activity Monitor Started")
-    # Grace period for startup
-    time.sleep(10) 
-    
-    while True:
-        time.sleep(1)
-        with shutdown_lock:
-            # If > 5 seconds inactive
-            elapsed = time.time() - last_active_time
-            if elapsed > 5:
-                logging.info(f"No heartbeat for {elapsed:.1f}s. Shutting down...")
-                os._exit(0) # Force exit
-
 if __name__ == '__main__':
     logging.info("Starting Server...")
     try:
-        import webbrowser
+        from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+        from PyQt5.QtWebEngineWidgets import QWebEngineView
+        from PyQt5.QtCore import QUrl
+        from PyQt5.QtGui import QIcon # Import QIcon
+        import threading
+        import sys
         
-        # Start Activity Monitor
-        threading.Thread(target=monitor_activity, daemon=True).start()
+        # 1. Start Flask in a separate thread
+        def run_flask():
+            app.run(debug=False, host='127.0.0.1', port=8000, use_reloader=False)
+
+        flask_thread = threading.Thread(target=run_flask, daemon=True)
+        flask_thread.start()
+
+        # 2. Setup PyQt5 Application
+        qt_app = QApplication(sys.argv)
+        qt_app.setApplicationName("Padharia Expense Tracker")
+
+        class MainWindow(QMainWindow):
+            def __init__(self):
+                super().__init__()
+                self.setWindowTitle("Padharia Expense Tracker")
+                self.resize(1200, 800)
+                
+                # Set Icon
+                icon_path = resource_path(os.path.join('static', 'rupee.ico'))
+                self.setWindowIcon(QIcon(icon_path))
+                
+                # Browser View
+                
+                # Browser View
+                self.browser = QWebEngineView()
+                self.browser.setUrl(QUrl("http://127.0.0.1:8000"))
+                
+                # Layout
+                # (Simple layout, just the browser checking the full window)
+                self.setCentralWidget(self.browser)
+
+        window = MainWindow()
+        window.show()
+
+        # 3. Monitor thread to close if Flask dies? (Optional, but PyQt handles window close -> exit)
+        logging.info("PyQt5 Window Launched")
         
-        def open_browser():
-            logging.info("Opening Browser...")
-            webbrowser.open_new('http://127.0.0.1:8000')
-            
-        threading.Timer(1, open_browser).start()
-        app.run(debug=False, host='127.0.0.1', port=8000)
+        sys.exit(qt_app.exec_())
+
     except Exception as e:
+        print(f"CRITICAL ERROR: {e}")
+        traceback.print_exc()
         logging.critical(f"Server crash: {e}")
         logging.critical(traceback.format_exc())
-        input("Press Enter to exit...") # Keep window open to see error if console visible
+        # Fallback if PyQt fails
+        input("Press Enter to exit...")
