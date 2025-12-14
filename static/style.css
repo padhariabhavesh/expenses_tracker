@@ -1,0 +1,238 @@
+:root {
+    --primary-color: #4f46e5;
+    --secondary-color: #818cf8;
+    --bg-color: #f3f4f6;
+    --card-bg: #ffffff;
+    --text-dark: #1f2937;
+    --text-muted: #6b7280;
+    --success-soft: #d1fae5;
+    --success-text: #065f46;
+    --danger-soft: #fee2e2;
+    --danger-text: #991b1b;
+}
+
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-dark);
+    padding-bottom: 80px;
+    padding-top: 80px;
+    /* Account for fixed navbar */
+    -webkit-tap-highlight-color: transparent;
+}
+
+.navbar {
+    background-color: var(--card-bg);
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.brand-gradient {
+    background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 700;
+}
+
+.stat-card {
+    border: none;
+    border-radius: 1rem;
+    background: var(--card-bg);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    height: 100%;
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+/* Specific Card Styles */
+.card-salary {
+    border-left: 4px solid #3b82f6;
+}
+
+/* Blue */
+.card-prev {
+    border-left: 4px solid #f59e0b;
+}
+
+/* Orange */
+.card-expense {
+    border-left: 4px solid #ef4444;
+}
+
+/* Red */
+.card-remaining {
+    border-left: 4px solid #10b981;
+}
+
+/* Green */
+
+.main-card {
+    border: none;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    background: var(--card-bg);
+}
+
+.table thead th {
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    background-color: #f9fafb;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.btn-primary-custom {
+    background-color: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    padding: 0.6rem 1.25rem;
+    border-radius: 0.5rem;
+}
+
+.fab {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4);
+    cursor: pointer;
+    z-index: 1000;
+}
+
+/* Modal styling */
+.modal-content {
+    border-radius: 1rem;
+    border: none;
+}
+
+.modal-header {
+    border-bottom: 1px solid #f3f4f6;
+}
+
+/* Toast Container */
+.toast-container {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 2000;
+}
+
+#loadingOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 9999;
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Mobile Table Cards */
+@media (max-width: 767.98px) {
+    .table thead {
+        display: none;
+    }
+
+    .table tbody,
+    .table tr,
+    .table td {
+        display: block;
+        width: 100%;
+    }
+
+    .table tr {
+        margin-bottom: 1rem;
+        background-color: #fff;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        padding: 0.75rem;
+    }
+
+    .table td {
+        padding: 0.25rem 0;
+        border: none;
+        text-align: right;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .table td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+
+    .table td:first-child {
+        justify-content: flex-start;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+        border-bottom: 1px solid #f3f4f6;
+        padding-bottom: 0.5rem;
+    }
+
+    .table td:first-child::before {
+        display: none;
+    }
+
+    .table td:last-child {
+        margin-top: 0.5rem;
+        border-top: 1px solid #f3f4f6;
+        padding-top: 0.5rem;
+        justify-content: flex-end;
+    }
+
+    .table td:last-child::before {
+        display: none;
+    }
+
+    /* Mobile Stats Font Size */
+    .stat-value {
+        font-size: 1.1rem;
+        /* Smaller on mobile */
+    }
+
+    .stat-label {
+        font-size: 0.65rem;
+    }
+}
+
+/* Responsive Search Container */
+.search-container {
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    .search-container {
+        width: auto;
+        min-width: 250px;
+    }
+}
