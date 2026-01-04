@@ -199,10 +199,13 @@ function renderTable(expenses) {
     const html = expenses.map(item => {
         let dateDisplay = item.month; // Default
         if (item.date) {
-            // Format 2025-12-14 to "Dec 14"
-            const d = new Date(item.date);
-            dateDisplay = d.toLocaleDateString('en-US', { day: 'numeric', month: 'short' });
-            // "Dec 14"
+            // Format 2025-12-14 to "14 12 2025" (DD MM YYYY)
+            const parts = item.date.split('-');
+            if (parts.length === 3) {
+                dateDisplay = `${parts[2]} ${parts[1]} ${parts[0]}`;
+            } else {
+                dateDisplay = item.date;
+            }
         }
 
         return `

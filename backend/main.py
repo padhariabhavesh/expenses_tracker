@@ -233,12 +233,34 @@ def add_expense():
     month_str = data.get('month') # Fallback
 
     if date_str:
-        # Parse date to get month "Nov 2025"
+        # Parse flexible date formats
         try:
+            # Try ISO first (YYYY-MM-DD)
             d = datetime.strptime(date_str, "%Y-%m-%d")
-            month_str = d.strftime("%b %Y")
         except:
-            pass # Keep what was passed or default logic below
+            try:
+                # Try DD MM YYYY
+                d = datetime.strptime(date_str, "%d %m %Y")
+                # Normalize storage to YYYY-MM-DD
+                date_str = d.strftime("%Y-%m-%d")
+                data['date'] = date_str 
+            except:
+                try:
+                    # Try DD-MM-YYYY
+                    d = datetime.strptime(date_str, "%d-%m-%Y")
+                    date_str = d.strftime("%Y-%m-%d")
+                    data['date'] = date_str
+                except:
+                    try:
+                        # Try DD/MM/YYYY
+                        d = datetime.strptime(date_str, "%d/%m/%Y")
+                        date_str = d.strftime("%Y-%m-%d")
+                        data['date'] = date_str
+                    except:
+                        pass # Keep original string if all fail
+
+        if 'd' in locals():
+             month_str = d.strftime("%b %Y")
 
     if not month_str:
         month_str = datetime.now().strftime("%b %Y")
@@ -266,11 +288,31 @@ def update_expense(id):
     # Date/Month Logic
     date_str = data.get('date')
     if date_str:
-        expense.date = date_str
+        # Parse flexible date formats
+        parsed_date = None
         try:
-            d = datetime.strptime(date_str, "%Y-%m-%d")
-            expense.month = d.strftime("%b %Y")
+            parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
         except:
+            try:
+                parsed_date = datetime.strptime(date_str, "%d %m %Y")
+            except:
+                try:
+                    parsed_date = datetime.strptime(date_str, "%d-%m-%Y")
+                except:
+                    try:
+                        parsed_date = datetime.strptime(date_str, "%d/%m/%Y")
+                    except:
+                        pass
+        
+        if parsed_date:
+            expense.date = parsed_date.strftime("%Y-%m-%d")
+            expense.month = parsed_date.strftime("%b %Y")
+        else:
+            # Fallback if unparseable but present? 
+            # Original code would just ignore or error. 
+            # Let's keep existing logic: assign if possible or keep as string
+            expense.date = date_str
+            # No month update if parse fails
             pass
             
     db.session.commit()
