@@ -11,7 +11,14 @@ import logging
 import traceback
 
 import logging
+import logging
 import traceback
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+from PyQt5.QtCore import QUrl
+from PyQt5.QtGui import QIcon
+import threading
+
 
 # Determine correct directory for logs
 if getattr(sys, 'frozen', False):
@@ -63,8 +70,13 @@ logging.info(f"Template Dir: {template_dir}")
 logging.info(f"Static Dir: {static_dir}")
 
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expenses.db'
+
+# Define explicit database path to ensure persistence in frozen app
+db_path = os.path.join(app_dir, 'expenses.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+logging.info(f"Database Path Configured: {db_path}")
 
 try:
     db.init_app(app)
@@ -357,10 +369,7 @@ def delete_category(id):
 if __name__ == '__main__':
     logging.info("Starting Server...")
     try:
-        from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
-        from PyQt5.QtWebEngineWidgets import QWebEngineView
-        from PyQt5.QtCore import QUrl
-        from PyQt5.QtGui import QIcon # Import QIcon
+        # Flask in a separate thread
         import threading
         import sys
         
@@ -408,5 +417,11 @@ if __name__ == '__main__':
         traceback.print_exc()
         logging.critical(f"Server crash: {e}")
         logging.critical(traceback.format_exc())
+        
         # Fallback if PyQt fails
-        input("Press Enter to exit...")
+        try:
+            import ctypes
+            ctypes.windll.user32.MessageBoxW(0, f"Critical Error: {e}\n\nCheck debug.log for details.", "Padharia Error", 0x10)
+        except:
+            pass
+        sys.exit(1)

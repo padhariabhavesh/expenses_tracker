@@ -42,3 +42,14 @@ A comprehensive personal finance application to track expenses, categorize spend
 - `frontend/`: HTML templates.
 - `static/`: CSS and JavaScript files.
 - `dist/`: Compiled executable.
+Manual Verification
+Repair Environment:
+Run the provided repair_env.ps1 script to recreate the virtual environment and install dependencies.
+Activate Virtual Environment:
+Run 
+.\venv\Scripts\Activate.ps1
+Rebuild Application:
+Run pyinstaller Padharia.spec --clean --noconfirm.
+Run Executable:
+Navigate to dist/Padharia.
+Run Padharia.exe.

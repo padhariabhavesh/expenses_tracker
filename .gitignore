@@ -10,7 +10,7 @@ __pycache__/
 # PyInstaller
 dist/
 build/
-*.spec
+
 
 # Flask/Database
 instance/
