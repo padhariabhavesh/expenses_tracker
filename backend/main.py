@@ -12,7 +12,15 @@ from dotenv import load_dotenv
 import openpyxl
 
 # Load environment variables
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
+# Load environment variables
+if getattr(sys, 'frozen', False):
+    base_dir = os.path.dirname(sys.executable)
+    env_path = os.path.join(base_dir, '.env')
+else:
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    env_path = os.path.join(base_dir, '.env')
+
+load_dotenv(env_path)
 
 # --- Logging Setup ---
 if getattr(sys, 'frozen', False):

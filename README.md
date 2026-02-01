@@ -24,6 +24,9 @@ This application can run as a standalone desktop executable or as a local web se
 3. The application will launch a window displaying the user interface.
    *(Note: The app runs a local backend server on `http://127.0.0.1:8000` internally)*.
 
+> [!IMPORTANT]
+> **Database Connection**: You must copy your `.env` file (containing `MONGO_URI`) to the same folder as `Padharia.exe` for the application to connect to your database. Without this, the app will start with empty data.
+
 ### Option 2: From Source (Developer)
 Prerequisites: Python 3.x installed.
 
@@ -42,7 +45,27 @@ Prerequisites: Python 3.x installed.
 
 ## Build Instructions (For Developer)
 
-If you made changes to the code and want to regenerate the `.exe` file, follow these steps using PowerShell.
+If you made changes to the code and want to regenerate the `.exe` file, you have two options.
+
+### Option 1: Automated Build (Recommended)
+
+We have provided a PowerShell script that repairs the environment, installs dependencies, and builds the executable automatically.
+
+1. **Run the Build Script**:
+   Open PowerShell in the project directory and run:
+   ```powershell
+   .\build_exe.ps1
+   ```
+
+2. **Wait for Completion**:
+   The script will verify your Python installation, install `requirements.txt`, and run PyInstaller.
+
+3. **Verify Build**:
+   Once finished, navigate to the `dist` folder to find `Padharia.exe`.
+
+### Option 2: Manual Build
+
+If you prefer to run the commands manually:
 
 1. **Repair/Setup Environment** (Optional, if fresh clone):
    ```powershell
@@ -54,14 +77,16 @@ If you made changes to the code and want to regenerate the `.exe` file, follow t
    .\venv\Scripts\Activate.ps1
    ```
 
-3. **Build the Executable**:
+3. **Install Dependencies**:
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+4. **Build the Executable**:
    Use PyInstaller with the provided spec file to create the bundled app.
    ```powershell
    pyinstaller Padharia.spec --clean --noconfirm
    ```
-
-4. **Verify Build**:
-   Navigate to the `dist` folder to find your new executable.
 
 ## Troubleshooting
 
@@ -70,7 +95,7 @@ If you made changes to the code and want to regenerate the `.exe` file, follow t
 - **Port Conflicts**: The app uses port `8000`. Ensure no other service is using this port.
 
 ## Tech Stack
-- **Backend**: Python (Flask), SQLAlchemy (SQLite)
+- **Backend**: Python (Flask), MongoDB (PyMongo)
 - **Frontend**: HTML5, Bootstrap 5, Vanilla JavaScript
 - **Desktop Wrapper**: PyQt5 (WebEngine)
 - **Charts**: Chart.js
