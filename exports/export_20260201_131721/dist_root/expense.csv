@@ -1,0 +1,10 @@
+id,item,amount,month,date,category
+1,Rent paper,300.0,Jan 2026,2026-01-04,Bill
+2,Light bill,3880.0,Jan 2026,2026-01-03,Bill
+3,Washroom repair,400.0,Jan 2026,2026-01-06,Utilities
+4,Nasta,200.0,Jan 2026,2026-01-10,Food & Dining
+5,Maintainance,1200.0,Jan 2026,2026-01-10,Bill
+6,TV recharge,706.82,Jan 2026,2026-01-18,Bill
+7,Wheat Flour,50.0,Jan 2026,2026-01-26,Food & Dining
+8,Lions Vero,6220.0,Jan 2026,2026-01-30,Bill
+9,viswakarma pooja fado,501.0,Jan 2026,2026-01-31,Other

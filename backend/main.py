@@ -4,110 +4,85 @@ from datetime import datetime
 import os
 import io
 import sys
-from models import db, Expense, MonthlySummary, Category
+import logging
+import traceback
+from pymongo import MongoClient, DESCENDING, ASCENDING
+from bson.objectid import ObjectId
+from dotenv import load_dotenv
 import openpyxl
 
-import logging
-import traceback
+# Load environment variables
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), '.env'))
 
-import logging
-import logging
-import traceback
-from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
-from PyQt5.QtWebEngineWidgets import QWebEngineView
-from PyQt5.QtCore import QUrl
-from PyQt5.QtGui import QIcon
-import threading
-
-
-# Determine correct directory for logs
+# --- Logging Setup ---
 if getattr(sys, 'frozen', False):
-    # If .exe, write log next to .exe
     app_dir = os.path.dirname(sys.executable)
 else:
     app_dir = os.path.dirname(os.path.abspath(__file__))
 
 log_file = os.path.join(app_dir, 'debug.log')
-
-print(f"Attempting to write logs to: {log_file}") # Console fallback
-
 logging.basicConfig(
     filename=log_file,
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-logging.info("Starting Application...")
+logging.info("Starting Application (MongoDB Version)...")
 
-# PyInstaller Resource Helper
+# --- Path Helpers ---
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
         base_path = sys._MEIPASS
-        logging.debug(f"Running in bundle mode: {base_path}")
     except Exception:
         base_path = os.path.abspath(".")
-        logging.debug(f"Running in dev mode: {base_path}")
+    return os.path.join(base_path, relative_path)
 
-    path = os.path.join(base_path, relative_path)
-    logging.debug(f"Resolved path for {relative_path}: {path}")
-    return path
-
-# Determine paths relative to where main.py is (backend/) or root if bundled
 if getattr(sys, 'frozen', False):
-    # Running as compiled exe
     template_dir = resource_path('templates')
     static_dir = resource_path('static')
 else:
-    # Running from source (backend/main.py)
-    # templates are in ../frontend/templates
-    # static is in ../static
     base_dir = os.path.dirname(os.path.abspath(__file__))
     template_dir = os.path.join(base_dir, '..', 'frontend', 'templates')
     static_dir = os.path.join(base_dir, '..', 'static')
 
-logging.info(f"Template Dir: {template_dir}")
-logging.info(f"Static Dir: {static_dir}")
-
 app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
+CORS(app)
 
-# Define explicit database path to ensure persistence in frozen app
-db_path = os.path.join(app_dir, 'expenses.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-
-logging.info(f"Database Path Configured: {db_path}")
+# --- Database Setup ---
+MONGO_URI = os.getenv("MONGO_URI")
+if not MONGO_URI or "YOUR_PASSWORD_HERE" in MONGO_URI:
+    logging.warning("MONGO_URI not set or contains placeholder. Database connection may fail.")
 
 try:
-    db.init_app(app)
-    CORS(app)
-    logging.info("Flask App Initialized")
+    client = MongoClient(MONGO_URI)
+    db = client.get_database("expenses_tracker")
+    # Test connection
+    client.server_info()
+    logging.info("Connected to MongoDB via pymongo")
 except Exception as e:
-    logging.error(f"Failed to init app: {e}")
-    logging.error(traceback.format_exc())
+    logging.critical(f"Failed to connect to MongoDB: {e}")
+    # We continue, but routes will likely fail
 
-with app.app_context():
-    db.create_all()
-    # Migration hack: Add 'date' column if missing
-    try:
-        with db.engine.connect() as conn:
-            conn.execute(db.text("ALTER TABLE expense ADD COLUMN date VARCHAR(20)"))
-    except Exception:
-        pass # Already exists
+expenses_col = db.expenses
+summary_col = db.monthly_summary
+categories_col = db.categories
 
-    # Migration hack: Add 'category' column if missing
-    try:
-        with db.engine.connect() as conn:
-            conn.execute(db.text("ALTER TABLE expense ADD COLUMN category VARCHAR(50) DEFAULT 'General'"))
-    except Exception:
-        pass # Already exists
+# --- Helper ---
+def serialize_doc(doc):
+    if not doc: return None
+    doc['id'] = str(doc['_id'])
+    del doc['_id']
+    return doc
 
-    # Seed Default Categories
-    if Category.query.count() == 0:
+# --- Seeding ---
+try:
+    if categories_col.count_documents({}) == 0:
         defaults = ["General", "Food & Dining", "Groceries", "Transportation", "Utilities", "Entertainment", "Health", "Shopping", "Other"]
-        for d in defaults:
-            db.session.add(Category(name=d))
-        db.session.commit()
+        categories_col.insert_many([{"name": d} for d in defaults])
+        logging.info("Seeded default categories")
+except Exception as e:
+    logging.error(f"Seeding failed: {e}")
+
+# --- Routes ---
 
 @app.route('/')
 def home():
@@ -117,18 +92,30 @@ def home():
 def dashboard_stats():
     target_month = request.args.get('month')
     if not target_month:
-        now = datetime.now()
-        target_month = now.strftime("%b %Y")
+        target_month = datetime.now().strftime("%b %Y")
 
-    current_salary_record = MonthlySummary.query.get(target_month)
-    current_salary = current_salary_record.salary if current_salary_record else 0.0
-    current_expenses = db.session.query(db.func.sum(Expense.amount)).filter(Expense.month == target_month).scalar() or 0.0
+    # Current Salary
+    curr_summary = summary_col.find_one({"month": target_month})
+    current_salary = curr_summary['salary'] if curr_summary else 0.0
 
-    # Previous Balance Calculation
-    all_summaries = MonthlySummary.query.all()
-    all_expenses = db.session.query(Expense.month, db.func.sum(Expense.amount)).group_by(Expense.month).all()
-    expense_map = {e[0]: e[1] for e in all_expenses}
-    salary_map = {s.month: s.salary for s in all_summaries}
+    # Current Expenses
+    pipeline = [
+        {"$match": {"month": target_month}},
+        {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
+    ]
+    res = list(expenses_col.aggregate(pipeline))
+    current_expenses = res[0]['total'] if res else 0.0
+
+    # Previous Balance logic
+    # Fetch all summaries and aggregated expenses
+    all_salaries = list(summary_col.find({}))
+    salary_map = {s['month']: s.get('salary', 0.0) for s in all_salaries}
+
+    exp_pipeline = [
+        {"$group": {"_id": "$month", "total": {"$sum": "$amount"}}}
+    ]
+    all_expenses = list(expenses_col.aggregate(exp_pipeline))
+    expense_map = {e['_id']: e['total'] for e in all_expenses}
 
     try:
         target_date_obj = datetime.strptime(target_month, "%b %Y")
@@ -136,9 +123,10 @@ def dashboard_stats():
         target_date_obj = datetime.now()
 
     previous_balance = 0.0
-    all_months = set(list(expense_map.keys()) + list(salary_map.keys()))
-    
+    all_months = set(list(salary_map.keys()) + list(expense_map.keys()))
+
     for m_str in all_months:
+        if not m_str: continue 
         try:
             m_date = datetime.strptime(m_str, "%b %Y")
             if m_date < target_date_obj:
@@ -169,12 +157,12 @@ def category_stats():
     if not month:
         month = datetime.now().strftime("%b %Y")
     
-    # query sum by category
-    results = db.session.query(Expense.category, db.func.sum(Expense.amount))\
-        .filter(Expense.month == month)\
-        .group_by(Expense.category).all()
-        
-    data = {r[0] or 'General': r[1] for r in results}
+    pipeline = [
+        {"$match": {"month": month}},
+        {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}}
+    ]
+    results = list(expenses_col.aggregate(pipeline))
+    data = { (r['_id'] or 'General'): r['total'] for r in results }
     return jsonify(data)
 
 @app.route('/salary', methods=['POST'])
@@ -183,14 +171,14 @@ def set_salary():
     month = data.get('month')
     amount = data.get('amount')
     if not month or amount is None: return jsonify({"error": "Missing data"}), 400
-    summary = MonthlySummary.query.get(month)
-    if not summary:
-        summary = MonthlySummary(month=month, salary=float(amount))
-        db.session.add(summary)
-    else:
-        summary.salary = float(amount)
-    db.session.commit()
-    return jsonify(summary.to_dict())
+    
+    res = summary_col.update_one(
+        {"month": month},
+        {"$set": {"salary": float(amount)}},
+        upsert=True
+    )
+    
+    return jsonify({"month": month, "salary": float(amount)})
 
 @app.route('/expenses', methods=['GET'])
 def get_expenses():
@@ -200,26 +188,31 @@ def get_expenses():
     search = request.args.get('search')
     category = request.args.get('category')
 
-    # Sort by Date descending (if avail), then ID desc
-    query = Expense.query.order_by(Expense.date.desc(), Expense.id.desc())
-    
+    query = {}
     if month_filter:
-        query = query.filter(Expense.month == month_filter)
-    
+        query["month"] = month_filter
     if search:
-        query = query.filter(Expense.item.ilike(f"%{search}%"))
-        
+        query["item"] = {"$regex": search, "$options": "i"}
     if category and category != 'All':
-        query = query.filter(Expense.category == category)
+        query["category"] = category
+
+    total = expenses_col.count_documents(query)
     
-    pagination = query.paginate(page=page, per_page=limit, error_out=False)
-    
+    # Sort by date desc, then _id desc (using _id as proxy for creation time if needed, or stick to natural)
+    # The original was: order_by(Expense.date.desc(), Expense.id.desc())
+    cursor = expenses_col.find(query).sort([("date", DESCENDING), ("_id", DESCENDING)])
+    cursor = cursor.skip((page - 1) * limit).limit(limit)
+
+    items = [serialize_doc(doc) for doc in cursor]
+
+    has_next = (page * limit) < total
+
     return jsonify({
-        "items": [e.to_dict() for e in pagination.items],
-        "total": pagination.total,
+        "items": items,
+        "total": total,
         "page": page,
-        "pages": pagination.pages,
-        "has_next": pagination.has_next
+        "pages": (total + limit - 1) // limit, # ceil division
+        "has_next": has_next
     })
 
 @app.route('/expenses', methods=['POST'])
@@ -228,164 +221,114 @@ def add_expense():
     if not data or 'item' not in data or 'amount' not in data:
         return jsonify({"error": "Invalid data"}), 400
     
-    # Logic: If date provided, derive month. Else default.
-    date_str = data.get('date') # YYYY-MM-DD
-    month_str = data.get('month') # Fallback
+    # Date logic (reused)
+    date_str = data.get('date')
+    month_str = data.get('month')
 
     if date_str:
-        # Parse flexible date formats
         try:
-            # Try ISO first (YYYY-MM-DD)
             d = datetime.strptime(date_str, "%Y-%m-%d")
         except:
-            try:
-                # Try DD MM YYYY
-                d = datetime.strptime(date_str, "%d %m %Y")
-                # Normalize storage to YYYY-MM-DD
-                date_str = d.strftime("%Y-%m-%d")
-                data['date'] = date_str 
-            except:
-                try:
-                    # Try DD-MM-YYYY
-                    d = datetime.strptime(date_str, "%d-%m-%Y")
-                    date_str = d.strftime("%Y-%m-%d")
-                    data['date'] = date_str
-                except:
-                    try:
-                        # Try DD/MM/YYYY
-                        d = datetime.strptime(date_str, "%d/%m/%Y")
-                        date_str = d.strftime("%Y-%m-%d")
-                        data['date'] = date_str
-                    except:
-                        pass # Keep original string if all fail
-
-        if 'd' in locals():
-             month_str = d.strftime("%b %Y")
+            d = None
+            # Try other formats, keeping it simple here or copying full logic?
+            # Let's trust the frontend sends YYYY-MM-DD or simple parsing
+            for fmt in ["%d %m %Y", "%d-%m-%Y", "%d/%m/%Y"]:
+                 try:
+                     d = datetime.strptime(date_str, fmt)
+                     date_str = d.strftime("%Y-%m-%d")
+                     break
+                 except: pass
+        
+        if d:
+            month_str = d.strftime("%b %Y")
+            data['date'] = date_str
 
     if not month_str:
-        month_str = datetime.now().strftime("%b %Y")
-        
-    new_expense = Expense(
-        item=data['item'],
-        amount=float(data['amount']),
-        month=month_str,
-        category=data.get('category', 'General'),
-        date=date_str
-    )
-    db.session.add(new_expense)
-    db.session.commit()
-    return jsonify(new_expense.to_dict()), 201
+         month_str = datetime.now().strftime("%b %Y")
 
-@app.route('/expenses/<int:id>', methods=['PUT'])
-def update_expense(id):
-    expense = Expense.query.get_or_404(id)
-    data = request.json
+    new_expense = {
+        "item": data['item'],
+        "amount": float(data['amount']),
+        "month": month_str,
+        "category": data.get('category', 'General'),
+        "date": date_str
+    }
     
-    expense.item = data.get('item', expense.item)
-    expense.amount = float(data.get('amount', expense.amount))
-    expense.category = data.get('category', expense.category)
+    res = expenses_col.insert_one(new_expense)
+    return jsonify(serialize_doc(expenses_col.find_one({"_id": res.inserted_id}))), 201
+
+@app.route('/expenses/<id>', methods=['PUT', 'DELETE'])
+def expense_op(id):
+    # Consolidating for brevity handling _id lookup
+    try:
+        oid = ObjectId(id)
+    except:
+        return jsonify({"error": "Invalid ID"}), 400
+
+    if request.method == 'DELETE':
+        res = expenses_col.delete_one({"_id": oid})
+        if res.deleted_count == 0: return jsonify({"error": "Not found"}), 404
+        return jsonify({"message": "Deleted"})
     
-    # Date/Month Logic
-    date_str = data.get('date')
-    if date_str:
-        # Parse flexible date formats
-        parsed_date = None
-        try:
-            parsed_date = datetime.strptime(date_str, "%Y-%m-%d")
-        except:
+    elif request.method == 'PUT':
+        data = request.json
+        update_fields = {}
+        if 'item' in data: update_fields['item'] = data['item']
+        if 'amount' in data: update_fields['amount'] = float(data['amount'])
+        if 'category' in data: update_fields['category'] = data['category']
+        
+        # Date update logic
+        if 'date' in data:
+            date_str = data['date']
+            update_fields['date'] = date_str
+            # Try to update month too
             try:
-                parsed_date = datetime.strptime(date_str, "%d %m %Y")
+                d = datetime.strptime(date_str, "%Y-%m-%d")
+                update_fields['month'] = d.strftime("%b %Y")
             except:
-                try:
-                    parsed_date = datetime.strptime(date_str, "%d-%m-%Y")
-                except:
-                    try:
-                        parsed_date = datetime.strptime(date_str, "%d/%m/%Y")
-                    except:
-                        pass
-        
-        if parsed_date:
-            expense.date = parsed_date.strftime("%Y-%m-%d")
-            expense.month = parsed_date.strftime("%b %Y")
-        else:
-            # Fallback if unparseable but present? 
-            # Original code would just ignore or error. 
-            # Let's keep existing logic: assign if possible or keep as string
-            expense.date = date_str
-            # No month update if parse fails
-            pass
-            
-    db.session.commit()
-    return jsonify(expense.to_dict())
+                pass # Parse failures handled loosely as before
 
-@app.route('/expenses/<int:id>', methods=['DELETE'])
-def delete_expense(id):
-    expense = Expense.query.get_or_404(id)
-    db.session.delete(expense)
-    db.session.commit()
-    return jsonify({"message": "Deleted"})
+        expenses_col.update_one({"_id": oid}, {"$set": update_fields})
+        return jsonify(serialize_doc(expenses_col.find_one({"_id": oid})))
 
-@app.route('/expenses', methods=['DELETE'])
+@app.route('/expenses', methods=['DELETE']) # Clear all
 def clear_expenses():
     try:
-        db.session.query(Expense).delete()
-        db.session.query(MonthlySummary).delete()
-        db.session.commit()
+        expenses_col.delete_many({})
+        summary_col.delete_many({})
         return jsonify({"message": "All data deleted"})
     except Exception as e:
-        db.session.rollback()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/export', methods=['GET'])
 def export_excel():
     month_filter = request.args.get('month')
-    
-    # Query Data
-    query = Expense.query.order_by(Expense.date.desc())
+    query = {}
     if month_filter:
-        query = query.filter(Expense.month == month_filter)
-    expenses = query.all()
+        query["month"] = month_filter
+        
+    expenses = list(expenses_col.find(query).sort("date", DESCENDING))
     
-    # Create Workbook
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Expenses"
-    
-    # Header
     ws.append(["ID", "Date", "Item", "Category", "Amount", "Month"])
     
-    # Rows
     for e in expenses:
-        ws.append([e.id, e.date or "", e.item, e.category or "General", e.amount, e.month])
+        ws.append([str(e['_id']), e.get('date', ''), e.get('item'), e.get('category', 'General'), e.get('amount'), e.get('month')])
         
-    # Stats Sheet
-    ws_stats = wb.create_sheet("Summary")
-    ws_stats.append(["Metric", "Value"])
-    if month_filter:
-        # Calculate stats for this month reused from logic?
-        # For simplicity, let's just dump what we know
-        pass
-        
-    # Save to Bytes
     out = io.BytesIO()
     wb.save(out)
     out.seek(0)
     
     filename = f"Expenses_{month_filter}.xlsx" if month_filter else "All_Expenses.xlsx"
-    
-    return send_file(
-        out,
-        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        as_attachment=True,
-        download_name=filename
-    )
-
+    return send_file(out, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', as_attachment=True, download_name=filename)
 
 
 @app.route('/categories', methods=['GET'])
 def get_categories():
-    files = Category.query.order_by(Category.name).all()
-    return jsonify([f.to_dict() for f in files])
+    cats = list(categories_col.find().sort("name", ASCENDING))
+    return jsonify([serialize_doc(c) for c in cats])
 
 @app.route('/categories', methods=['POST'])
 def add_category():
@@ -393,37 +336,39 @@ def add_category():
     name = data.get('name', '').strip()
     if not name: return jsonify({"error": "Missing name"}), 400
     
-    if Category.query.filter_by(name=name).first():
+    if categories_col.find_one({"name": name}):
         return jsonify({"error": "Exists"}), 400
         
-    cat = Category(name=name)
-    db.session.add(cat)
-    db.session.commit()
-    return jsonify(cat.to_dict()), 201
+    res = categories_col.insert_one({"name": name})
+    return jsonify({"id": str(res.inserted_id), "name": name}), 201
 
-@app.route('/categories/<int:id>', methods=['DELETE'])
+@app.route('/categories/<id>', methods=['DELETE'])
 def delete_category(id):
-    cat = Category.query.get_or_404(id)
-    db.session.delete(cat)
-    db.session.commit()
-    return jsonify({"message": "Deleted"})
+    try:
+        oid = ObjectId(id)
+        categories_col.delete_one({"_id": oid})
+        return jsonify({"message": "Deleted"})
+    except:
+        return jsonify({"error": "Invalid ID"}), 400
 
 if __name__ == '__main__':
     logging.info("Starting Server...")
     try:
-        # Flask in a separate thread
         import threading
-        import sys
         
-        # 1. Start Flask in a separate thread
         def run_flask():
             app.run(debug=False, host='127.0.0.1', port=8000, use_reloader=False)
 
         flask_thread = threading.Thread(target=run_flask, daemon=True)
         flask_thread.start()
 
-        # 2. Setup PyQt5 Application
-        qt_app = QApplication(sys.argv)
+        # PyQt5 App
+        from PyQt5.QtWidgets import QApplication, QMainWindow
+        from PyQt5.QtWebEngineWidgets import QWebEngineView
+        from PyQt5.QtCore import QUrl
+        from PyQt5.QtGui import QIcon
+
+        qt_app = QApplication( sys.argv)
         qt_app.setApplicationName("Padharia Expense Tracker")
 
         class MainWindow(QMainWindow):
@@ -431,39 +376,38 @@ if __name__ == '__main__':
                 super().__init__()
                 self.setWindowTitle("Padharia Expense Tracker")
                 self.resize(1200, 800)
-                
-                # Set Icon
                 icon_path = resource_path(os.path.join('static', 'rupee.ico'))
                 self.setWindowIcon(QIcon(icon_path))
                 
-                # Browser View
-                
-                # Browser View
                 self.browser = QWebEngineView()
                 self.browser.setUrl(QUrl("http://127.0.0.1:8000"))
-                
-                # Layout
-                # (Simple layout, just the browser checking the full window)
                 self.setCentralWidget(self.browser)
+                
+                # Handle Downloads
+                self.browser.page().profile().downloadRequested.connect(self.on_download_requested)
+
+            def on_download_requested(self, download):
+                from PyQt5.QtWidgets import QFileDialog
+                
+                # Propose filename
+                suggested_filename = download.suggestedFileName()
+                
+                # Open Save Dialog
+                path, _ = QFileDialog.getSaveFileName(self, "Save File", suggested_filename, "Excel Files (*.xlsx);;All Files (*)")
+                
+                if path:
+                    download.setPath(path)
+                    download.accept()
+                else:
+                    download.cancel()
 
         window = MainWindow()
         window.show()
-
-        # 3. Monitor thread to close if Flask dies? (Optional, but PyQt handles window close -> exit)
         logging.info("PyQt5 Window Launched")
-        
         sys.exit(qt_app.exec_())
 
     except Exception as e:
         print(f"CRITICAL ERROR: {e}")
-        traceback.print_exc()
         logging.critical(f"Server crash: {e}")
         logging.critical(traceback.format_exc())
-        
-        # Fallback if PyQt fails
-        try:
-            import ctypes
-            ctypes.windll.user32.MessageBoxW(0, f"Critical Error: {e}\n\nCheck debug.log for details.", "Padharia Error", 0x10)
-        except:
-            pass
         sys.exit(1)
