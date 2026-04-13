@@ -20,6 +20,8 @@ python -m PyInstaller Padharia.spec --clean --noconfirm
 if ($?) {
     Write-Host "Build Success!" -ForegroundColor Green
     Write-Host "Executable is located in: dist\Padharia.exe" -ForegroundColor Cyan
+    Copy-Item ".env" "dist\.env" -ErrorAction SilentlyContinue
+    Write-Host "Copied .env to dist directory for database connection!" -ForegroundColor Cyan
 }
 else {
     Write-Error "Build Failed."
