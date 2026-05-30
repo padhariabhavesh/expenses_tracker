@@ -1,7 +1,2 @@
-# Helper for serializing MongoDB objects
-def serialize_doc(doc):
-    if not doc:
-        return None
-    doc['id'] = str(doc['_id'])
-    del doc['_id']
-    return doc
+# models.py — placeholder kept for future model definitions.
+# serialize_doc is defined and used in main.py; this file should not redefine it.

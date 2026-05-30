@@ -1,26 +1,67 @@
+# ── Padharia.spec ─────────────────────────────────────────────────────────
+# PyInstaller spec for Padharia Expense Tracker (with Auth + Admin Panel)
+# ──────────────────────────────────────────────────────────────────────────
 from PyInstaller.utils.hooks import collect_all
+import os
+import sys
 
-datas = [('frontend/templates', 'templates'), ('static', 'static')]
-binaries = []
+# ── Data files bundled into the exe ──────────────────────────────────────
+datas = [
+    ('frontend/templates', 'templates'),   # login, register, dashboard, admin
+    ('static',             'static'),      # style.css, script.js, rupee.png/.ico
+]
+
+binaries      = []
 hiddenimports = []
 
-# Collect all PyQt5 hooks
+# ── PyQt5 (full collection) ───────────────────────────────────────────────
 tmp_ret = collect_all('PyQt5')
-datas += tmp_ret[0]
-binaries += tmp_ret[1]
+datas       += tmp_ret[0]
+binaries    += tmp_ret[1]
 hiddenimports += tmp_ret[2]
 
-# Add specific submodules to be safe
-hiddenimports += ['PyQt5.QtWidgets', 'PyQt5.QtWebEngineWidgets', 'PyQt5.QtCore', 'PyQt5.QtGui', 'PyQt5.QtNetwork']
+hiddenimports += [
+    'PyQt5.QtWidgets',
+    'PyQt5.QtWebEngineWidgets',
+    'PyQt5.QtCore',
+    'PyQt5.QtGui',
+    'PyQt5.QtNetwork',
+]
 
-# Manual fix for missing DLLs
-import os
-qt5_bin = r'C:\Users\Bhavesh\AppData\Local\Programs\Python\Python311\Lib\site-packages\PyQt5\Qt5\bin'
-if os.path.exists(qt5_bin):
-    # Add all DLLs from bin to the bundle
-    binaries += [(os.path.join(qt5_bin, '*.dll'), 'PyQt5/Qt5/bin')]
+# ── Flask / Werkzeug hidden imports ──────────────────────────────────────
+hiddenimports += [
+    'flask',
+    'flask_cors',
+    'werkzeug',
+    'werkzeug.security',
+    'werkzeug.utils',
+    'pymongo',
+    'pymongo.uri_parser',
+    'pymongo.ssl_support',
+    'bson',
+    'bson.objectid',
+    'dns',
+    'dns.resolver',
+    'openpyxl',
+    'dotenv',
+]
 
+# ── PyQt5 DLLs (auto-detect install location) ────────────────────────────
+for _base in [
+    os.path.expanduser(r'~\AppData\Local\Programs\Python\Python311\Lib\site-packages\PyQt5\Qt5\bin'),
+    os.path.expanduser(r'~\AppData\Local\Programs\Python\Python312\Lib\site-packages\PyQt5\Qt5\bin'),
+    os.path.expanduser(r'~\AppData\Local\Programs\Python\Python310\Lib\site-packages\PyQt5\Qt5\bin'),
+    r'C:\Python311\Lib\site-packages\PyQt5\Qt5\bin',
+    r'C:\Python312\Lib\site-packages\PyQt5\Qt5\bin',
+]:
+    if os.path.isdir(_base):
+        binaries += [(os.path.join(_base, '*.dll'), 'PyQt5/Qt5/bin')]
+        break
 
+# ── Icon path (relative, so it works on any machine) ─────────────────────
+_icon = os.path.join('static', 'rupee.ico')
+
+# ─────────────────────────────────────────────────────────────────────────
 a = Analysis(
     ['backend\\main.py'],
     pathex=['backend'],
@@ -30,10 +71,11 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['tkinter', 'matplotlib', 'numpy', 'pandas', 'scipy'],
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(
@@ -49,11 +91,11 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=False,                     # No console window
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='d:\\Freelance\\expenses_tracker\\static\\rupee.ico',
+    icon=_icon,
 )

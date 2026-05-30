@@ -7,3 +7,4 @@ PyQtWebEngine
 pymongo
 python-dotenv
 dnspython
+werkzeug

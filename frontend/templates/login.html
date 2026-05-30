@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Login — Padharia Expense Tracker</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='rupee.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary:   #0284c7;
+            --primary-h: #0369a1;
+            --accent:    #38bdf8;
+            --bg:        #f1f5f9;
+            --card:      rgba(255,255,255,0.9);
+            --border:    rgba(15, 23, 42, 0.08);
+            --text:      #0f172a;
+            --muted:     #64748b;
+            --danger:    #be123c;
+            --success:   #047857;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── LEFT HERO ── */
+        .hero {
+            flex: 1;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 40%, #0c4a6e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            width: 500px; height: 500px;
+            background: radial-gradient(circle, rgba(56,189,248,0.2) 0%, transparent 70%);
+            top: -100px; right: -100px;
+            border-radius: 50%;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 350px; height: 350px;
+            background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, transparent 70%);
+            bottom: -80px; left: 40px;
+            border-radius: 50%;
+        }
+
+        .hero-logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 3rem;
+            position: relative; z-index: 1;
+        }
+        .hero-logo img { width: 44px; height: 44px; border-radius: 12px; }
+        .hero-logo span { font-size: 1.25rem; font-weight: 700; color: #fff; }
+
+        .hero h1 {
+            font-size: clamp(2rem, 3.5vw, 3rem);
+            font-weight: 800;
+            color: #fff;
+            line-height: 1.2;
+            position: relative; z-index: 1;
+            margin-bottom: 1.25rem;
+        }
+        .hero h1 span {
+            background: linear-gradient(90deg, #e0f2fe, #bae6fd);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p {
+            color: rgba(255,255,255,0.85);
+            font-size: 1.05rem;
+            line-height: 1.7;
+            max-width: 400px;
+            position: relative; z-index: 1;
+            margin-bottom: 2.5rem;
+        }
+
+        .feature-list { list-style: none; position: relative; z-index: 1; }
+        .feature-list li {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: rgba(255,255,255,0.9);
+            font-size: 0.95rem;
+            margin-bottom: 0.85rem;
+        }
+        .feature-list li .icon {
+            width: 32px; height: 32px;
+            background: rgba(255,255,255,0.18);
+            border-radius: 8px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        /* ── RIGHT PANEL ── */
+        .panel {
+            width: 480px;
+            min-width: 480px;
+            background: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem 3.5rem;
+            position: relative;
+        }
+
+        .form-box { width: 100%; }
+
+        .form-header { margin-bottom: 2rem; }
+        .form-header h2 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-bottom: 0.4rem;
+        }
+        .form-header p { color: var(--muted); font-size: 0.92rem; }
+
+        .form-group { margin-bottom: 1.25rem; }
+        .form-group label {
+            display: block;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+        .input-wrap i {
+            position: absolute;
+            left: 1rem; top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            font-size: 1rem;
+            pointer-events: none;
+        }
+        .input-wrap input {
+            width: 100%;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.95rem;
+            padding: 0.8rem 1rem 0.8rem 2.75rem;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .input-wrap input::placeholder { color: #94a3b8; }
+        .input-wrap input:focus {
+            border-color: var(--primary);
+            background: rgba(2, 132, 199, 0.04);
+        }
+        .input-wrap toggle-pw {
+            position: absolute;
+            right: 1rem; top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted);
+            cursor: pointer;
+            font-size: 1rem;
+            pointer-events: all;
+        }
+        .input-wrap .toggle-pw:hover { color: var(--primary); }
+
+        .remember-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.75rem;
+        }
+        .remember-row label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--muted);
+            font-size: 0.88rem;
+            cursor: pointer;
+        }
+        .remember-row input[type=checkbox] {
+            accent-color: var(--primary);
+            width: 15px; height: 15px;
+        }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary), #6366f1);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.97rem;
+            font-weight: 600;
+            padding: 0.85rem;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .divider {
+            display: flex; align-items: center; gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        .divider::before, .divider::after {
+            content: ''; flex: 1;
+            height: 1px; background: var(--border);
+        }
+        .divider span { color: var(--muted); font-size: 0.8rem; white-space: nowrap; }
+
+        .footer-link {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .footer-link a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .footer-link a:hover { text-decoration: underline; }
+
+        /* Error / Success alerts */
+        .alert {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            margin-bottom: 1.25rem;
+            display: none;
+        }
+        .alert.show { display: block; }
+        .alert-danger { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .alert-success { background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+
+        /* Spinner inside button */
+        .btn-spinner {
+            display: inline-block;
+            width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Fade in animation */
+        .form-box {
+            animation: fadeUp 0.5s ease both;
+        }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .hero { display: none; }
+            .panel { width: 100%; min-width: unset; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+    <div class="hero-logo">
+        <img src="{{ url_for('static', filename='rupee.png') }}" alt="Logo">
+        <span>Padharia Expense Tracker</span>
+    </div>
+    <h1>Track Every <span>Rupee,</span><br>Master Your Finances</h1>
+    <p>A smart, beautiful expense tracker designed to give you complete control over your money — right from your desktop.</p>
+    <ul class="feature-list">
+        <li><div class="icon"><i class="bi bi-bar-chart-fill"></i></div> Visual spending breakdowns by category</li>
+        <li><div class="icon"><i class="bi bi-calendar3"></i></div> Month-by-month balance history</li>
+        <li><div class="icon"><i class="bi bi-file-earmark-excel-fill"></i></div> One-click Excel export</li>
+        <li><div class="icon"><i class="bi bi-shield-lock-fill"></i></div> Secure, per-user data isolation</li>
+    </ul>
+</div>
+
+<!-- Login Panel -->
+<div class="panel">
+    <div class="form-box">
+        <div class="form-header">
+            <h2>Welcome back 👋</h2>
+            <p>Sign in to continue to your dashboard</p>
+        </div>
+
+        <div id="alertBox" class="alert"></div>
+
+        <div class="form-group">
+            <label>Username</label>
+            <div class="input-wrap">
+                <i class="bi bi-person"></i>
+                <input type="text" id="loginUsername" placeholder="e.g. Bhavesh Padharia" autocomplete="username">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <div class="input-wrap">
+                <i class="bi bi-lock"></i>
+                <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+                <i class="bi bi-eye toggle-pw" id="togglePw" onclick="togglePassword()"></i>
+            </div>
+        </div>
+
+        <div class="remember-row">
+            <label>
+                <input type="checkbox" id="rememberMe"> Remember me
+            </label>
+        </div>
+
+        <button class="btn-primary" id="loginBtn" onclick="doLogin()">
+            Sign In
+        </button>
+
+        <div class="divider"><span>Don't have an account?</span></div>
+
+        <div class="footer-link">
+            <a href="/register">Create a free account</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API = window.location.origin;
+
+    function showAlert(msg, type = 'danger') {
+        const el = document.getElementById('alertBox');
+        el.className = `alert alert-${type} show`;
+        el.textContent = msg;
+    }
+    function hideAlert() {
+        document.getElementById('alertBox').className = 'alert';
+    }
+
+    function togglePassword() {
+        const pw = document.getElementById('loginPassword');
+        const icon = document.getElementById('togglePw');
+        if (pw.type === 'password') {
+            pw.type = 'text';
+            icon.className = 'bi bi-eye-slash toggle-pw';
+        } else {
+            pw.type = 'password';
+            icon.className = 'bi bi-eye toggle-pw';
+        }
+    }
+
+    // Allow Enter key
+    document.getElementById('loginPassword').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doLogin();
+    });
+    document.getElementById('loginUsername').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doLogin();
+    });
+
+    // Auto-fill and auto-login logic on load
+    document.addEventListener('DOMContentLoaded', () => {
+        const savedUser = localStorage.getItem('rememberedUsername');
+        const savedPass = localStorage.getItem('rememberedPassword');
+        const autoLogin = localStorage.getItem('autoLoginActive');
+
+        if (savedUser && savedPass) {
+            document.getElementById('loginUsername').value = savedUser;
+            document.getElementById('loginPassword').value = savedPass;
+            document.getElementById('rememberMe').checked = true;
+
+            // Trigger auto-login if active and not returning from an explicit logout
+            if (autoLogin === 'true') {
+                setTimeout(doLogin, 100);
+            }
+        }
+    });
+
+    async function doLogin() {
+        hideAlert();
+        const username = document.getElementById('loginUsername').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const remember = document.getElementById('rememberMe').checked;
+        const btn      = document.getElementById('loginBtn');
+
+        if (!username || !password) { showAlert('Please fill in all fields'); return; }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span>Signing in…';
+
+        try {
+            const res  = await fetch(`${API}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ username, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                // Save or clear remembered details
+                if (remember) {
+                    localStorage.setItem('rememberedUsername', username);
+                    localStorage.setItem('rememberedPassword', password);
+                    localStorage.setItem('autoLoginActive', 'true');
+                } else {
+                    localStorage.removeItem('rememberedUsername');
+                    localStorage.removeItem('rememberedPassword');
+                    localStorage.removeItem('autoLoginActive');
+                }
+
+                showAlert('Login successful! Redirecting…', 'success');
+                setTimeout(() => { window.location.href = '/'; }, 600);
+            } else {
+                showAlert(data.error || 'Login failed');
+                btn.disabled = false;
+                btn.innerHTML = 'Sign In';
+                // Stop auto login attempts if auth fails
+                localStorage.removeItem('autoLoginActive');
+            }
+        } catch (e) {
+            showAlert('Network error — is the server running?');
+            btn.disabled = false;
+            btn.innerHTML = 'Sign In';
+            localStorage.removeItem('autoLoginActive');
+        }
+    }
+</script>
+</body>
+</html>

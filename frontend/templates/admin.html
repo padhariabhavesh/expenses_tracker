@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin Panel — Padharia Expense Tracker</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='rupee.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        :root {
+            --primary:  #4f46e5;
+            --accent:   #818cf8;
+            --sidebar:  #0f172a;
+            --sidebar-border: rgba(255,255,255,0.06);
+            --bg:       #f1f5f9;
+            --card:     #ffffff;
+            --text:     #0f172a;
+            --muted:    #64748b;
+            --danger:   #ef4444;
+            --success:  #10b981;
+            --warning:  #f59e0b;
+            --info:     #3b82f6;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        /* ── SIDEBAR ── */
+        .sidebar {
+            width: 250px; min-width: 250px;
+            background: var(--sidebar);
+            display: flex; flex-direction: column;
+            position: fixed; top: 0; left: 0;
+            height: 100vh; z-index: 100;
+            border-right: 1px solid var(--sidebar-border);
+        }
+
+        .sidebar-brand {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 1.5rem 1.25rem;
+            border-bottom: 1px solid var(--sidebar-border);
+        }
+        .sidebar-brand img { width: 36px; height: 36px; border-radius: 10px; }
+        .sidebar-brand-text { line-height: 1.2; }
+        .sidebar-brand-text .name { color: #fff; font-weight: 700; font-size: 0.9rem; }
+        .sidebar-brand-text .sub  { color: #64748b; font-size: 0.75rem; }
+
+        .sidebar-section { padding: 1.5rem 1rem 0.5rem; }
+        .sidebar-section-label {
+            color: #475569; font-size: 0.7rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.08em;
+            padding: 0 0.5rem; margin-bottom: 0.5rem;
+        }
+
+        .sidebar-nav a {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.65rem 0.75rem; border-radius: 8px;
+            color: #94a3b8; font-size: 0.9rem; font-weight: 500;
+            text-decoration: none; transition: all 0.15s;
+            margin-bottom: 2px;
+        }
+        .sidebar-nav a:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+        .sidebar-nav a.active { background: rgba(79,70,229,0.2); color: #818cf8; }
+        .sidebar-nav a i { font-size: 1rem; width: 20px; }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 1rem;
+            border-top: 1px solid var(--sidebar-border);
+        }
+        .user-chip {
+            display: flex; align-items: center; gap: 0.75rem;
+            padding: 0.6rem 0.75rem; border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+        }
+        .user-avatar {
+            width: 32px; height: 32px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: #fff; font-weight: 700; font-size: 0.8rem;
+            flex-shrink: 0;
+        }
+        .user-info .uname { color: #e2e8f0; font-size: 0.85rem; font-weight: 600; }
+        .user-info .urole {
+            display: inline-block;
+            background: rgba(79,70,229,0.3); color: #a5b4fc;
+            font-size: 0.68rem; font-weight: 700; text-transform: uppercase;
+            padding: 1px 6px; border-radius: 4px;
+        }
+        .logout-btn {
+            display: flex; align-items: center; gap: 0.5rem;
+            background: none; border: none; color: #64748b;
+            font-size: 0.8rem; cursor: pointer; padding: 0.4rem 0.75rem;
+            border-radius: 6px; width: 100%; margin-top: 0.5rem;
+            transition: color 0.15s, background 0.15s;
+        }
+        .logout-btn:hover { color: var(--danger); background: rgba(239,68,68,0.08); }
+
+        /* ── MAIN ── */
+        .main {
+            margin-left: 250px;
+            flex: 1;
+            display: flex; flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .topbar {
+            background: var(--card);
+            border-bottom: 1px solid #e2e8f0;
+            padding: 1rem 2rem;
+            display: flex; align-items: center; justify-content: space-between;
+            position: sticky; top: 0; z-index: 50;
+        }
+        .topbar h1 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin: 0; }
+        .topbar-actions { display: flex; align-items: center; gap: 0.75rem; }
+        .badge-admin {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: #fff; font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; padding: 3px 10px; border-radius: 20px;
+        }
+
+        .content { padding: 2rem; }
+
+        /* ── STAT CARDS ── */
+        .stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1.25rem; margin-bottom: 2rem; }
+
+        .stat-card {
+            background: var(--card);
+            border-radius: 14px;
+            padding: 1.4rem 1.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            border: 1px solid #e2e8f0;
+            display: flex; flex-direction: column; gap: 0.5rem;
+            position: relative; overflow: hidden;
+        }
+        .stat-card::before {
+            content: '';
+            position: absolute; top: 0; left: 0;
+            width: 4px; height: 100%;
+        }
+        .stat-card.c1::before { background: var(--primary); }
+        .stat-card.c2::before { background: var(--success); }
+        .stat-card.c3::before { background: var(--warning); }
+        .stat-card.c4::before { background: var(--info); }
+
+        .stat-label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+        .stat-value { font-size: 2rem; font-weight: 800; color: var(--text); line-height: 1; }
+        .stat-icon {
+            position: absolute; right: 1.25rem; top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem; opacity: 0.08;
+        }
+
+        /* ── SECTION CARD ── */
+        .section-card {
+            background: var(--card);
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+        .section-header {
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .section-header h2 { font-size: 0.95rem; font-weight: 700; color: var(--text); margin: 0; }
+        .section-header .count {
+            background: #f1f5f9; color: var(--muted);
+            font-size: 0.78rem; font-weight: 600;
+            padding: 2px 10px; border-radius: 20px;
+        }
+
+        /* ── TABLE ── */
+        .admin-table { width: 100%; border-collapse: collapse; }
+        .admin-table th {
+            background: #f8fafc; color: var(--muted);
+            font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            padding: 0.85rem 1.25rem; text-align: left;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .admin-table td {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.9rem; vertical-align: middle;
+        }
+        .admin-table tr:last-child td { border-bottom: none; }
+        .admin-table tr:hover td { background: #fafafa; }
+
+        .user-row-avatar {
+            width: 36px; height: 36px;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 700; font-size: 0.85rem; color: #fff;
+            background: linear-gradient(135deg, #4f46e5, #818cf8);
+        }
+
+        .role-badge {
+            display: inline-block; padding: 3px 10px;
+            border-radius: 20px; font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .role-badge.admin { background: rgba(79,70,229,0.1); color: var(--primary); }
+        .role-badge.user  { background: rgba(100,116,139,0.1); color: var(--muted); }
+
+        .status-dot {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            font-size: 0.82rem;
+        }
+        .status-dot::before {
+            content: ''; width: 7px; height: 7px;
+            border-radius: 50%;
+        }
+        .status-dot.active { color: var(--success); }
+        .status-dot.active::before { background: var(--success); }
+        .status-dot.inactive { color: var(--muted); }
+        .status-dot.inactive::before { background: var(--muted); }
+
+        .action-btn {
+            background: none; border: 1px solid transparent;
+            padding: 4px 10px; border-radius: 6px;
+            font-size: 0.78rem; font-weight: 600; cursor: pointer;
+            transition: all 0.15s;
+        }
+        .action-btn.promote { color: var(--primary); border-color: rgba(79,70,229,0.3); }
+        .action-btn.promote:hover { background: rgba(79,70,229,0.08); }
+        .action-btn.demote { color: var(--muted); border-color: rgba(100,116,139,0.3); }
+        .action-btn.demote:hover { background: rgba(100,116,139,0.08); }
+        .action-btn.toggle { color: var(--warning); border-color: rgba(245,158,11,0.3); }
+        .action-btn.toggle:hover { background: rgba(245,158,11,0.08); }
+        .action-btn.del { color: var(--danger); border-color: rgba(239,68,68,0.3); }
+        .action-btn.del:hover { background: rgba(239,68,68,0.08); }
+
+        /* ── CHARTS ── */
+        .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 2rem; }
+        .chart-wrap { max-height: 260px; position: relative; }
+
+        /* ── TOAST ── */
+        .toast-wrap {
+            position: fixed; top: 1.25rem; right: 1.25rem;
+            z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem;
+        }
+        .toast-item {
+            background: #1e293b; color: #e2e8f0;
+            padding: 0.75rem 1.25rem; border-radius: 10px;
+            font-size: 0.88rem; font-weight: 500;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+            animation: slideIn 0.3s ease;
+            border-left: 3px solid var(--success);
+        }
+        .toast-item.err { border-left-color: var(--danger); }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+        /* loading skeleton */
+        .skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200%; animation: shimmer 1.2s infinite; border-radius: 6px; }
+        @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+        @media (max-width: 1100px) {
+            .stat-cards { grid-template-columns: repeat(2, 1fr); }
+            .chart-row  { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .sidebar { display: none; }
+            .main { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+    <div class="sidebar-brand">
+        <img src="{{ url_for('static', filename='rupee.png') }}" alt="Logo">
+        <div class="sidebar-brand-text">
+            <div class="name">Padharia ET</div>
+            <div class="sub">Admin Panel</div>
+        </div>
+    </div>
+
+    <div class="sidebar-section">
+        <div class="sidebar-section-label">Navigation</div>
+        <div class="sidebar-nav">
+            <a href="#" class="active" onclick="showSection('overview')">
+                <i class="bi bi-grid-1x2-fill"></i> Overview
+            </a>
+            <a href="#" onclick="showSection('users')">
+                <i class="bi bi-people-fill"></i> Users
+            </a>
+            <a href="/" >
+                <i class="bi bi-speedometer2"></i> Dashboard
+            </a>
+        </div>
+    </div>
+
+    <div class="sidebar-footer">
+        <div class="user-chip">
+            <div class="user-avatar" id="sidebarAvatar">A</div>
+            <div class="user-info">
+                <div class="uname" id="sidebarName">Admin</div>
+                <span class="urole">Admin</span>
+            </div>
+        </div>
+        <button class="logout-btn" onclick="doLogout()">
+            <i class="bi bi-box-arrow-left"></i> Sign Out
+        </button>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<div class="main">
+    <div class="topbar">
+        <h1 id="topbarTitle">Overview</h1>
+        <div class="topbar-actions">
+            <span class="badge-admin"><i class="bi bi-shield-fill me-1"></i>Admin</span>
+        </div>
+    </div>
+
+    <div class="content">
+
+        <!-- ── OVERVIEW SECTION ── -->
+        <div id="section-overview">
+            <!-- Stat Cards -->
+            <div class="stat-cards" id="statCards">
+                <div class="stat-card c1">
+                    <div class="stat-label">Total Users</div>
+                    <div class="stat-value" id="s-users">—</div>
+                    <i class="bi bi-people stat-icon"></i>
+                </div>
+                <div class="stat-card c2">
+                    <div class="stat-label">Active Users</div>
+                    <div class="stat-value" id="s-active">—</div>
+                    <i class="bi bi-person-check stat-icon"></i>
+                </div>
+                <div class="stat-card c3">
+                    <div class="stat-label">Total Expenses</div>
+                    <div class="stat-value" id="s-expenses">—</div>
+                    <i class="bi bi-receipt stat-icon"></i>
+                </div>
+                <div class="stat-card c4">
+                    <div class="stat-label">Total Amount</div>
+                    <div class="stat-value" id="s-amount">—</div>
+                    <i class="bi bi-currency-rupee stat-icon"></i>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="chart-row">
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2><i class="bi bi-bar-chart-fill me-2 text-primary"></i>Expenses by User</h2>
+                    </div>
+                    <div style="padding:1.25rem;">
+                        <div class="chart-wrap"><canvas id="userChart"></canvas></div>
+                    </div>
+                </div>
+                <div class="section-card">
+                    <div class="section-header">
+                        <h2><i class="bi bi-pie-chart-fill me-2 text-success"></i>User Roles</h2>
+                    </div>
+                    <div style="padding:1.25rem;">
+                        <div class="chart-wrap"><canvas id="roleChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── USERS SECTION ── -->
+        <div id="section-users" style="display:none;">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2><i class="bi bi-people-fill me-2"></i>All Users</h2>
+                    <span class="count" id="userCount">0 users</span>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Status</th>
+                                <th>Expenses</th>
+                                <th>Joined</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="7" class="text-center py-4 text-muted">Loading…</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /content -->
+</div><!-- /main -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    const API = window.location.origin;
+    let allUsers = [];
+    let userChartInst = null;
+    let roleChartInst = null;
+
+    /* ── Init ── */
+    document.addEventListener('DOMContentLoaded', async () => {
+        const me = await fetchMe();
+        if (!me) return;
+        document.getElementById('sidebarAvatar').textContent = me.username[0].toUpperCase();
+        document.getElementById('sidebarName').textContent = me.username;
+
+        await Promise.all([loadStats(), loadUsers()]);
+    });
+
+    async function fetchMe() {
+        try {
+            const res = await fetch(`${API}/auth/me`, { credentials: 'include' });
+            if (res.status === 401) { window.location.href = '/login'; return null; }
+            if (res.status === 403) { window.location.href = '/'; return null; }
+            return await res.json();
+        } catch { window.location.href = '/login'; return null; }
+    }
+
+    /* ── Sections ── */
+    function showSection(name) {
+        ['overview', 'users'].forEach(s => {
+            document.getElementById(`section-${s}`).style.display = s === name ? '' : 'none';
+        });
+        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+        event.currentTarget.classList.add('active');
+        document.getElementById('topbarTitle').textContent =
+            name === 'overview' ? 'Overview' : 'User Management';
+    }
+
+    /* ── Stats ── */
+    async function loadStats() {
+        try {
+            const res  = await fetch(`${API}/admin/stats`, { credentials: 'include' });
+            const data = await res.json();
+            document.getElementById('s-users').textContent   = data.total_users;
+            document.getElementById('s-active').textContent  = data.active_users;
+            document.getElementById('s-expenses').textContent = data.total_expenses.toLocaleString('en-IN');
+            document.getElementById('s-amount').textContent  = '₹' + (data.total_amount || 0).toLocaleString('en-IN', {maximumFractionDigits: 0});
+        } catch (e) { console.error(e); }
+    }
+
+    /* ── Users ── */
+    async function loadUsers() {
+        try {
+            const res = await fetch(`${API}/admin/users`, { credentials: 'include' });
+            allUsers  = await res.json();
+            renderUsersTable(allUsers);
+            renderCharts(allUsers);
+            document.getElementById('userCount').textContent = `${allUsers.length} user${allUsers.length !== 1 ? 's' : ''}`;
+        } catch (e) { console.error(e); }
+    }
+
+    function renderUsersTable(users) {
+        const tbody = document.getElementById('usersTableBody');
+        if (!users.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No users found.</td></tr>';
+            return;
+        }
+
+        const colors = ['#4f46e5','#059669','#d97706','#dc2626','#7c3aed','#0891b2'];
+        tbody.innerHTML = users.map((u, i) => {
+            const color   = colors[i % colors.length];
+            const initial = (u.username || '?')[0].toUpperCase();
+            const joined  = u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN') : '—';
+            const isAdmin = u.role === 'admin';
+            const active  = u.is_active;
+
+            return `<tr id="urow-${u.id}">
+                <td>
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="user-row-avatar" style="background:linear-gradient(135deg,${color},${color}aa)">${initial}</div>
+                        <div>
+                            <div style="font-weight:600;font-size:0.9rem;">${escHtml(u.username)}</div>
+                        </div>
+                    </div>
+                </td>
+                <td style="color:var(--muted);font-size:0.85rem;">${escHtml(u.email)}</td>
+                <td><span class="role-badge ${u.role}">${u.role}</span></td>
+                <td><span class="status-dot ${active ? 'active' : 'inactive'}">${active ? 'Active' : 'Inactive'}</span></td>
+                <td style="font-weight:600;">${u.expense_count.toLocaleString('en-IN')}</td>
+                <td style="color:var(--muted);font-size:0.85rem;">${joined}</td>
+                <td>
+                    <div class="d-flex gap-1 flex-wrap">
+                        ${isAdmin
+                            ? `<button class="action-btn demote" onclick="updateRole('${u.id}','user')">Remove Admin</button>`
+                            : `<button class="action-btn promote" onclick="updateRole('${u.id}','admin')">Make Admin</button>`
+                        }
+                        <button class="action-btn toggle" onclick="toggleActive('${u.id}',${!active})">
+                            ${active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button class="action-btn del" onclick="deleteUser('${u.id}','${escHtml(u.username)}')">Delete</button>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function renderCharts(users) {
+        // Bar: expenses per user
+        const labels = users.map(u => u.username);
+        const counts = users.map(u => u.expense_count);
+        const bgColors = ['#4f46e5','#059669','#d97706','#dc2626','#7c3aed','#0891b2','#db2777'];
+
+        if (userChartInst) userChartInst.destroy();
+        userChartInst = new Chart(document.getElementById('userChart'), {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [{
+                    label: 'Expenses',
+                    data: counts,
+                    backgroundColor: bgColors.slice(0, labels.length),
+                    borderRadius: 6,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { precision: 0 } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // Doughnut: role distribution
+        const admins = users.filter(u => u.role === 'admin').length;
+        const regular = users.length - admins;
+        if (roleChartInst) roleChartInst.destroy();
+        roleChartInst = new Chart(document.getElementById('roleChart'), {
+            type: 'doughnut',
+            data: {
+                labels: ['Admin', 'User'],
+                datasets: [{ data: [admins, regular], backgroundColor: ['#4f46e5', '#e2e8f0'], hoverOffset: 4 }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'bottom' } }
+            }
+        });
+    }
+
+    /* ── Actions ── */
+    async function updateRole(uid, role) {
+        try {
+            const res = await fetch(`${API}/admin/users/${uid}`, {
+                method: 'PUT', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role })
+            });
+            const d = await res.json();
+            if (res.ok) { toast('Role updated successfully'); await loadUsers(); }
+            else toast(d.error || 'Failed', true);
+        } catch { toast('Network error', true); }
+    }
+
+    async function toggleActive(uid, newState) {
+        try {
+            const res = await fetch(`${API}/admin/users/${uid}`, {
+                method: 'PUT', credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ is_active: newState })
+            });
+            const d = await res.json();
+            if (res.ok) { toast(`User ${newState ? 'activated' : 'deactivated'}`); await loadUsers(); }
+            else toast(d.error || 'Failed', true);
+        } catch { toast('Network error', true); }
+    }
+
+    async function deleteUser(uid, username) {
+        if (!confirm(`⚠️ Delete user "${username}" and ALL their expenses? This cannot be undone.`)) return;
+        try {
+            const res = await fetch(`${API}/admin/users/${uid}`, {
+                method: 'DELETE', credentials: 'include'
+            });
+            const d = await res.json();
+            if (res.ok) { toast('User deleted'); await Promise.all([loadStats(), loadUsers()]); }
+            else toast(d.error || 'Failed', true);
+        } catch { toast('Network error', true); }
+    }
+
+    async function doLogout() {
+        await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' });
+        window.location.href = '/login';
+    }
+
+    /* ── Helpers ── */
+    function escHtml(str) {
+        return (str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function toast(msg, err = false) {
+        const wrap = document.getElementById('toastWrap');
+        const div  = document.createElement('div');
+        div.className = 'toast-item' + (err ? ' err' : '');
+        div.textContent = msg;
+        wrap.appendChild(div);
+        setTimeout(() => div.remove(), 3500);
+    }
+</script>
+</body>
+</html>

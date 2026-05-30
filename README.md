@@ -88,10 +88,11 @@ If you prefer to run the commands manually:
    pyinstaller Padharia.spec --clean --noconfirm
    ```
 
+
 ## Troubleshooting
 
 - **Logs**: If the application fails to start, check `debug.log` located in the same directory as the executable (or in the root folder if running from source).
-- **Database**: The database is stored in `expenses.db`. Ensure this file is not locked by another process if you encounter write errors.
+- **Database**: Data is persistent via MongoDB. Ensure your `.env` contains a valid `MONGO_URI` connection string.
 - **Port Conflicts**: The app uses port `8000`. Ensure no other service is using this port.
 
 ## Tech Stack
@@ -99,4 +100,4 @@ If you prefer to run the commands manually:
 - **Frontend**: HTML5, Bootstrap 5, Vanilla JavaScript
 - **Desktop Wrapper**: PyQt5 (WebEngine)
 - **Charts**: Chart.js
-- **Data Handling**: OpenPyxl (Excel), Pandas (if used)
+- **Data Handling**: OpenPyxl (Excel)

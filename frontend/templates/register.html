@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Register — Padharia Expense Tracker</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='rupee.png') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --primary:   #0284c7;
+            --primary-h: #0369a1;
+            --accent:    #38bdf8;
+            --bg:        #f1f5f9;
+            --border:    rgba(15, 23, 42, 0.08);
+            --text:      #0f172a;
+            --muted:     #64748b;
+            --danger:    #be123c;
+            --success:   #047857;
+            --warn:      #f59e0b;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── LEFT HERO ── */
+        .hero {
+            flex: 1;
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 40%, #0c4a6e 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 4rem;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            width: 450px; height: 450px;
+            background: radial-gradient(circle, rgba(56,189,248,0.2) 0%, transparent 70%);
+            top: -80px; right: -80px;
+            border-radius: 50%;
+        }
+        .hero::after {
+            content: '';
+            position: absolute;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(14,165,233,0.15) 0%, transparent 70%);
+            bottom: -60px; left: 60px;
+            border-radius: 50%;
+        }
+
+        .hero-logo {
+            display: flex; align-items: center; gap: 0.75rem;
+            margin-bottom: 3rem; position: relative; z-index: 1;
+        }
+        .hero-logo img { width: 44px; height: 44px; border-radius: 12px; }
+        .hero-logo span { font-size: 1.25rem; font-weight: 700; color: #fff; }
+
+        .hero h1 {
+            font-size: clamp(2rem, 3.5vw, 3rem);
+            font-weight: 800; color: #fff; line-height: 1.2;
+            position: relative; z-index: 1; margin-bottom: 1.25rem;
+        }
+        .hero h1 span {
+            background: linear-gradient(90deg, #e0f2fe, #bae6fd);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .hero p {
+            color: rgba(255,255,255,0.85); font-size: 1.05rem;
+            line-height: 1.7; max-width: 400px;
+            position: relative; z-index: 1; margin-bottom: 2.5rem;
+        }
+
+        .steps { position: relative; z-index: 1; }
+        .step {
+            display: flex; align-items: flex-start; gap: 1rem;
+            margin-bottom: 1.25rem;
+        }
+        .step-num {
+            width: 32px; height: 32px; flex-shrink: 0;
+            background: rgba(255,255,255,0.18);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.8rem; font-weight: 700; color: #fff;
+        }
+        .step-text { color: rgba(255,255,255,0.9); font-size: 0.92rem; line-height: 1.5; }
+        .step-text strong { color: #fff; display: block; margin-bottom: 2px; }
+
+        /* ── RIGHT PANEL ── */
+        .panel {
+            width: 500px; min-width: 500px;
+            background: #ffffff;
+            display: flex; align-items: center; justify-content: center;
+            padding: 3rem 3.5rem;
+            overflow-y: auto;
+        }
+
+        .form-box { width: 100%; animation: fadeUp 0.5s ease both; }
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        .form-header { margin-bottom: 1.75rem; }
+        .form-header h2 { font-size: 1.75rem; font-weight: 700; color: var(--text); margin-bottom: 0.4rem; }
+        .form-header p { color: var(--muted); font-size: 0.92rem; }
+
+        .form-group { margin-bottom: 1.15rem; }
+        .form-group label {
+            display: block; font-size: 0.8rem; font-weight: 600;
+            color: var(--muted); text-transform: uppercase;
+            letter-spacing: 0.05em; margin-bottom: 0.45rem;
+        }
+
+        .input-wrap { position: relative; }
+        .input-wrap i.prefix {
+            position: absolute; left: 1rem; top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted); font-size: 1rem; pointer-events: none;
+        }
+        .input-wrap input {
+            width: 100%;
+            background: #ffffff;
+            border: 1px solid var(--border);
+            border-radius: 10px; color: var(--text);
+            font-family: 'Inter', sans-serif; font-size: 0.95rem;
+            padding: 0.78rem 1rem 0.78rem 2.75rem; outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .input-wrap input::placeholder { color: #94a3b8; }
+        .input-wrap input:focus {
+            border-color: var(--primary);
+            background: rgba(2, 132, 199, 0.04);
+        }
+        .input-wrap input.valid   { border-color: var(--success); }
+        .input-wrap input.invalid { border-color: var(--danger); }
+
+        .toggle-pw {
+            position: absolute; right: 1rem; top: 50%;
+            transform: translateY(-50%);
+            color: var(--muted); cursor: pointer; font-size: 1rem;
+        }
+        .toggle-pw:hover { color: var(--primary); }
+
+        /* Password strength bar */
+        .strength-bar-wrap {
+            margin-top: 0.5rem; height: 4px;
+            background: rgba(15, 23, 42, 0.06); border-radius: 4px; overflow: hidden;
+        }
+        .strength-bar {
+            height: 100%; width: 0%; border-radius: 4px;
+            transition: width 0.3s, background 0.3s;
+        }
+        .strength-label { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
+
+        .btn-primary {
+            width: 100%;
+            background: linear-gradient(135deg, #059669, #10b981);
+            border: none; border-radius: 10px; color: #fff;
+            font-family: 'Inter', sans-serif; font-size: 0.97rem; font-weight: 600;
+            padding: 0.85rem; cursor: pointer;
+            transition: opacity 0.2s, transform 0.15s;
+        }
+        .btn-primary:hover { opacity: 0.92; transform: translateY(-1px); }
+        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .alert {
+            padding: 0.75rem 1rem; border-radius: 8px;
+            font-size: 0.88rem; margin-bottom: 1.25rem; display: none;
+        }
+        .alert.show { display: block; }
+        .alert-danger  { background: rgba(239,68,68,0.12); color: #fca5a5; border: 1px solid rgba(239,68,68,0.3); }
+        .alert-success { background: rgba(16,185,129,0.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,0.3); }
+
+        .btn-spinner {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+            border-radius: 50%; animation: spin 0.7s linear infinite;
+            vertical-align: middle; margin-right: 6px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .divider { display: flex; align-items: center; gap: 1rem; margin: 1.5rem 0; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+        .divider span { color: var(--muted); font-size: 0.8rem; }
+
+        .footer-link { text-align: center; color: var(--muted); font-size: 0.9rem; }
+        .footer-link a { color: var(--accent); text-decoration: none; font-weight: 600; }
+        .footer-link a:hover { text-decoration: underline; }
+
+        @media (max-width: 900px) {
+            .hero { display: none; }
+            .panel { width: 100%; min-width: unset; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+    <div class="hero-logo">
+        <img src="{{ url_for('static', filename='rupee.png') }}" alt="Logo">
+        <span>Padharia Expense Tracker</span>
+    </div>
+    <h1>Start Your <span>Financial</span><br>Journey Today</h1>
+    <p>Create your free account and take control of your spending. It only takes 30 seconds.</p>
+    <div class="steps">
+        <div class="step">
+            <div class="step-num">1</div>
+            <div class="step-text">
+                <strong>Create your account</strong>
+                Fill in your details below to get started instantly.
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">2</div>
+            <div class="step-text">
+                <strong>Set your monthly salary</strong>
+                Enter your income so the tracker can show your balance.
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-num">3</div>
+            <div class="step-text">
+                <strong>Log your expenses</strong>
+                Add expenses by category and watch your dashboard update live.
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Register Panel -->
+<div class="panel">
+    <div class="form-box">
+        <div class="form-header">
+            <h2>Create account ✨</h2>
+            <p>Fill in the details below to get started</p>
+        </div>
+
+        <div id="alertBox" class="alert"></div>
+
+        <div class="form-group">
+            <label>Full Name / Username</label>
+            <div class="input-wrap">
+                <i class="bi bi-person prefix"></i>
+                <input type="text" id="regUsername" placeholder="e.g. Bhavesh Padharia" autocomplete="name">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Email Address</label>
+            <div class="input-wrap">
+                <i class="bi bi-envelope prefix"></i>
+                <input type="email" id="regEmail" placeholder="you@example.com" autocomplete="email">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <div class="input-wrap">
+                <i class="bi bi-lock prefix"></i>
+                <input type="password" id="regPassword" placeholder="Min. 6 characters"
+                       autocomplete="new-password" oninput="checkStrength(this.value)">
+                <i class="bi bi-eye toggle-pw" id="togglePw" onclick="togglePw()"></i>
+            </div>
+            <div class="strength-bar-wrap"><div class="strength-bar" id="strengthBar"></div></div>
+            <div class="strength-label" id="strengthLabel"></div>
+        </div>
+
+        <div class="form-group">
+            <label>Confirm Password</label>
+            <div class="input-wrap">
+                <i class="bi bi-lock-fill prefix"></i>
+                <input type="password" id="regConfirm" placeholder="Repeat your password" autocomplete="new-password">
+            </div>
+        </div>
+
+        <button class="btn-primary" id="regBtn" onclick="doRegister()" style="margin-top:0.5rem;">
+            Create Account
+        </button>
+
+        <div class="divider"><span>Already have an account?</span></div>
+        <div class="footer-link"><a href="/login">Sign in instead</a></div>
+    </div>
+</div>
+
+<script>
+    const API = window.location.origin;
+
+    function showAlert(msg, type = 'danger') {
+        const el = document.getElementById('alertBox');
+        el.className = `alert alert-${type} show`;
+        el.textContent = msg;
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+    function hideAlert() { document.getElementById('alertBox').className = 'alert'; }
+
+    function togglePw() {
+        const pw   = document.getElementById('regPassword');
+        const icon = document.getElementById('togglePw');
+        if (pw.type === 'password') { pw.type = 'text'; icon.className = 'bi bi-eye-slash toggle-pw'; }
+        else                        { pw.type = 'password'; icon.className = 'bi bi-eye toggle-pw'; }
+    }
+
+    function checkStrength(val) {
+        const bar   = document.getElementById('strengthBar');
+        const label = document.getElementById('strengthLabel');
+        if (!val) { bar.style.width = '0'; label.textContent = ''; return; }
+
+        let score = 0;
+        if (val.length >= 6)  score++;
+        if (val.length >= 10) score++;
+        if (/[A-Z]/.test(val)) score++;
+        if (/[0-9]/.test(val)) score++;
+        if (/[^A-Za-z0-9]/.test(val)) score++;
+
+        const levels = [
+            { w: '20%', color: '#ef4444', text: 'Very weak' },
+            { w: '40%', color: '#f97316', text: 'Weak' },
+            { w: '60%', color: '#f59e0b', text: 'Fair' },
+            { w: '80%', color: '#3b82f6', text: 'Strong' },
+            { w: '100%', color: '#10b981', text: 'Very strong' },
+        ];
+        const lvl = levels[Math.min(score - 1, 4)] || levels[0];
+        bar.style.width     = lvl.w;
+        bar.style.background = lvl.color;
+        label.textContent   = lvl.text;
+        label.style.color   = lvl.color;
+    }
+
+    document.getElementById('regConfirm').addEventListener('keydown', e => {
+        if (e.key === 'Enter') doRegister();
+    });
+
+    async function doRegister() {
+        hideAlert();
+        const username = document.getElementById('regUsername').value.trim();
+        const email    = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPassword').value;
+        const confirm  = document.getElementById('regConfirm').value;
+        const btn      = document.getElementById('regBtn');
+
+        if (!username || !email || !password || !confirm) {
+            showAlert('Please fill in all fields'); return;
+        }
+        if (password !== confirm) {
+            showAlert('Passwords do not match'); return;
+        }
+        if (password.length < 6) {
+            showAlert('Password must be at least 6 characters'); return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span>Creating account…';
+
+        try {
+            const res  = await fetch(`${API}/auth/register`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ username, email, password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                let msg = `Account created! Welcome, ${data.username}.`;
+                if (data.migrated_expenses > 0) {
+                    msg += ` ✅ ${data.migrated_expenses} existing expense(s) have been assigned to your account.`;
+                }
+                showAlert(msg + ' Redirecting…', 'success');
+                setTimeout(() => { window.location.href = '/'; }, 1200);
+            } else {
+                showAlert(data.error || 'Registration failed');
+                btn.disabled = false;
+                btn.innerHTML = 'Create Account';
+            }
+        } catch (e) {
+            showAlert('Network error — is the server running?');
+            btn.disabled = false;
+            btn.innerHTML = 'Create Account';
+        }
+    }
+</script>
+</body>
+</html>
