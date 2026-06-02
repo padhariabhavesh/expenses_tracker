@@ -10,7 +10,7 @@ __pycache__/
 # PyInstaller
 dist/
 build/
-
+.env
 
 # Flask/Database
 instance/
