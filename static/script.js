@@ -2,21 +2,86 @@ const API_URL = window.location.origin;
 let currentPage = 1;
 let expenseModal = new bootstrap.Modal(document.getElementById('expenseModal'));
 let salaryModal = new bootstrap.Modal(document.getElementById('salaryModal'));
+let categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+let importModal = new bootstrap.Modal(document.getElementById('importModal'));
+
 const LIMIT = 50;
 let allItems = [];
 let allCategories = [];
 let currentMonthFilter = '';
 let chartInstance = null;
 let searchTimeout = null;
-let categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
-// Fix #2: importModal element was missing from HTML — init only if element exists
-let importModal = null;
-const _importEl = document.getElementById('importModal');
-if (_importEl) {
-    importModal = new bootstrap.Modal(_importEl);
+let selectedImportFile = null;
+
+/* ── Bootstrap Theme Initializer ── */
+document.addEventListener('DOMContentLoaded', async () => {
+    initTheme();
+    await loadCurrentUser();
+    refreshAll();
+    setupDragAndDrop();
+
+    // Heartbeat logic for keeping server alive and triggering background auto-syncs
+    setInterval(async () => {
+        try {
+            const res = await fetch(`${API_URL}/heartbeat`, { method: 'POST', keepalive: true, credentials: 'include' });
+            if (res.ok) {
+                const data = await res.json();
+                updateDatabaseStatus(data.database);
+            }
+        } catch (e) {
+            updateDatabaseStatus("offline");
+        }
+    }, 30000);
+});
+
+/* ── Dark / Light Theme System ── */
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    updateThemeIcon(savedTheme);
 }
 
-/* ── Auth helper: wrap fetch to always send session cookie and handle 401 ── */
+function toggleTheme() {
+    const currentTheme = document.documentElement.getAttribute('data-theme');
+    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', newTheme);
+    localStorage.setItem('theme', newTheme);
+    updateThemeIcon(newTheme);
+    
+    // Dynamically re-render charts to adapt label colors and borders to the theme
+    renderCharts();
+}
+
+function updateThemeIcon(theme) {
+    const icon = document.getElementById('themeIcon');
+    if (!icon) return;
+    if (theme === 'dark') {
+        icon.className = 'bi bi-moon-stars-fill';
+        icon.style.color = '#fbbf24'; // Warm amber moon
+    } else {
+        icon.className = 'bi bi-sun-fill';
+        icon.style.color = '#f59e0b'; // Amber sun
+    }
+}
+
+/* Update visual database online/offline badges */
+function updateDatabaseStatus(status) {
+    const badge = document.getElementById('dbStatusBadge');
+    const badgeMobile = document.getElementById('dbStatusBadgeMobile');
+    
+    [badge, badgeMobile].forEach(el => {
+        if (!el) return;
+        if (status === 'online') {
+            el.className = 'sync-badge sync-online';
+            el.textContent = 'Online';
+        } else {
+            el.className = 'sync-badge sync-offline';
+            el.textContent = 'Offline (Local)';
+        }
+    });
+}
+
+/* ── Wrapped Authenticated Fetch ── */
 async function authFetch(url, opts = {}) {
     opts.credentials = 'include';
     const res = await fetch(url, opts);
@@ -27,29 +92,22 @@ async function authFetch(url, opts = {}) {
     return res;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    await loadCurrentUser();
-    refreshAll();
-
-    // Heartbeat for keeping .exe alive
-    setInterval(() => {
-        fetch(`${API_URL}/heartbeat`, { method: 'POST', keepalive: true, credentials: 'include' }).catch(() => {});
-    }, 30000);
-});
-
-/* Load current user info into navbar chip */
+/* Load current user profile details into navbar */
 async function loadCurrentUser() {
     try {
-        const res  = await authFetch(`${API_URL}/auth/me`);
+        const res = await authFetch(`${API_URL}/auth/me`);
         if (!res.ok) return;
         const data = await res.json();
         const avatar = document.getElementById('userAvatar');
-        const name   = document.getElementById('userName');
+        const name = document.getElementById('userName');
         const adminL = document.getElementById('adminLink');
+        
         if (avatar) avatar.textContent = (data.username || '?')[0].toUpperCase();
-        if (name)   name.textContent   = data.username || 'User';
+        if (name) name.textContent = data.username || 'User';
         if (adminL && data.role === 'admin') adminL.style.display = '';
-    } catch (e) { console.error('Auth check failed:', e); }
+    } catch (e) {
+        console.error('Authentication load failure:', e);
+    }
 }
 
 async function doLogout() {
@@ -69,24 +127,23 @@ async function refreshAll() {
     showLoading(false);
 }
 
-// Categories
+// Categories Management
 async function loadCategories() {
     try {
         const res = await authFetch(`${API_URL}/categories`);
         allCategories = await res.json();
         updateCategorySelect();
-    } catch (e) { console.error('Cats error:', e); }
+    } catch (e) {
+        console.error('Failed to load categories:', e);
+    }
 }
 
 function updateCategorySelect() {
     const sel = document.getElementById('itemCategory');
     if (!sel) return;
 
-    // Keep current value if possible
     const currentVal = sel.value;
-
     let html = '';
-    // Sort logic handled in backend or here
     allCategories.forEach(c => {
         html += `<option value="${c.name}">${c.name}</option>`;
     });
@@ -104,11 +161,12 @@ function openCategoryModal() {
 
 function renderCategoryList() {
     const list = document.getElementById('categoryList');
+    if (!list) return;
     list.innerHTML = allCategories.map(c => `
-        <div class="category-list-item">
+        <div class="category-list-item d-flex justify-content-between align-items-center py-2 border-bottom">
             <span>${c.name}</span>
-            <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteCategory(${c.id})">
-                <i class="bi bi-x-lg"></i>
+            <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteCategory('${c.id}')">
+                <i class="bi bi-trash"></i>
             </button>
         </div>
     `).join('');
@@ -129,54 +187,65 @@ async function addCategory() {
             input.value = '';
             await loadCategories();
             renderCategoryList();
+            showToast('Category created successfully', 'success');
         } else {
             const d = await res.json();
-            alert(d.error);
+            showToast(d.error || 'Failed to create category', 'danger');
         }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error(e);
+    }
 }
 
 async function deleteCategory(id) {
-    if (!confirm('Delete Category?')) return;
+    if (!confirm('Are you sure you want to delete this category?')) return;
     try {
         const res = await authFetch(`${API_URL}/categories/${id}`, { method: 'DELETE' });
         if (res.ok) {
             await loadCategories();
             renderCategoryList();
+            showToast('Category deleted', 'success');
         } else {
             const d = await res.json();
             showToast(d.error || 'Could not delete category', 'danger');
         }
-    } catch (e) { console.error(e); showToast('Error deleting category', 'danger'); }
+    } catch (e) {
+        console.error(e);
+        showToast('Error deleting category', 'danger');
+    }
 }
 
-// Stats & Filter
+// Balance and Filtering Stats
 async function loadStats() {
     try {
         const url = currentMonthFilter
             ? `${API_URL}/dashboard-stats?month=${encodeURIComponent(currentMonthFilter)}`
             : `${API_URL}/dashboard-stats`;
 
-        const res = await fetch(url);
+        const res = await authFetch(url);
         const data = await res.json();
 
         updateStat('prevBal', data.previous_balance);
         updateStat('salaryAmount', data.salary);
         updateStat('expensesAmount', data.current_expenses);
         updateStat('remainingBal', data.remaining_balance);
+        
+        updateDatabaseStatus(data.database);
 
         const remEl = document.getElementById('remainingBal');
-        if (data.remaining_balance < 0) {
-            remEl.classList.add('text-danger'); remEl.classList.remove('text-success');
-        } else {
-            remEl.classList.add('text-success'); remEl.classList.remove('text-danger');
+        if (remEl) {
+            if (data.remaining_balance < 0) {
+                remEl.className = 'stat-value fw-bold text-danger';
+            } else {
+                remEl.className = 'stat-value fw-bold text-success';
+            }
         }
 
         updateFilterDropdown(data.available_months, data.current_filter);
         currentMonthFilter = data.current_filter;
 
     } catch (e) {
-        console.error('Stats error:', e);
+        console.error('Stats query failure:', e);
     }
 }
 
@@ -184,7 +253,6 @@ function updateStat(id, val) {
     const el = document.getElementById(id);
     if (!el) return;
     const num = val || 0;
-    // Fix #14: Correctly position ₹ prefix for negative values (e.g. -₹500 not ₹-500)
     if (num < 0) {
         el.textContent = '-\u20B9' + Math.abs(num).toLocaleString('en-IN');
     } else {
@@ -200,7 +268,6 @@ function updateFilterDropdown(months, activeMonth) {
     months.forEach(m => {
         html += `<option value="${m}" ${m === activeMonth ? 'selected' : ''}>${m}</option>`;
     });
-    // Add active if missing
     if (!months.includes(activeMonth) && activeMonth) {
         html = `<option value="${activeMonth}" selected>${activeMonth}</option>` + html;
     }
@@ -208,7 +275,7 @@ function updateFilterDropdown(months, activeMonth) {
     select.value = activeMonth || '';
 }
 
-// Expenses List
+// Expenses Data Loader
 async function loadExpenses(page, reset = false) {
     try {
         let url = `${API_URL}/expenses?page=${page}&limit=${LIMIT}`;
@@ -242,15 +309,43 @@ async function loadExpenses(page, reset = false) {
         }
         info.textContent = `Showing ${allItems.length} of ${data.total}`;
 
-    } catch (error) { console.error(error); }
+    } catch (error) {
+        console.error(error);
+    }
+}
+
+function getCategoryBadgeClass(category) {
+    const cat = (category || '').toLowerCase();
+    if (cat.includes('food') || cat.includes('grocer') || cat.includes('dine') || cat.includes('dining')) return 'badge-food';
+    if (cat.includes('shop') || cat.includes('entertain') || cat.includes('movie') || cat.includes('play')) return 'badge-entertainment';
+    if (cat.includes('transport') || cat.includes('travel') || cat.includes('taxi') || cat.includes('fuel')) return 'badge-transport';
+    if (cat.includes('util') || cat.includes('bill') || cat.includes('rent')) return 'badge-utilities';
+    if (cat.includes('health') || cat.includes('medic') || cat.includes('fit')) return 'badge-health';
+    if (cat.includes('salary') || cat.includes('income') || cat.includes('earn')) return 'badge-income';
+    return 'badge-general';
 }
 
 function renderTable(expenses, total = 0, reset = false) {
     const tbody = document.getElementById('expenseList');
+    const tableContainer = document.querySelector('.table-responsive');
+    const emptyState = document.getElementById('tableEmptyState');
+    const loadMorePanel = document.getElementById('loadMoreBtn').parentElement;
+
+    if (expenses.length === 0 && total === 0) {
+        tbody.innerHTML = '';
+        if (tableContainer) tableContainer.classList.add('d-none');
+        if (emptyState) emptyState.classList.remove('d-none');
+        if (loadMorePanel) loadMorePanel.classList.add('d-none');
+        return;
+    }
+
+    if (tableContainer) tableContainer.classList.remove('d-none');
+    if (emptyState) emptyState.classList.add('d-none');
+    if (loadMorePanel) loadMorePanel.classList.remove('d-none');
+
     const html = expenses.map(item => {
-        let dateDisplay = item.month; // Default
+        let dateDisplay = item.month;
         if (item.date) {
-            // Format 2025-12-14 to "14 12 2025" (DD MM YYYY)
             const parts = item.date.split('-');
             if (parts.length === 3) {
                 dateDisplay = `${parts[2]} ${parts[1]} ${parts[0]}`;
@@ -259,29 +354,31 @@ function renderTable(expenses, total = 0, reset = false) {
             }
         }
 
+        const badgeClass = getCategoryBadgeClass(item.category);
+
         return `
         <tr>
             <td data-label="Item">
-                <div class="fw-bold text-dark">${item.item}</div>
+                <div class="fw-semibold text-dark">${item.item}</div>
             </td>
             <td data-label="Category">
-                <span class="badge bg-light text-secondary border">${item.category || 'General'}</span>
+                <span class="badge-custom ${badgeClass}">${item.category || 'General'}</span>
             </td>
             <td data-label="Date">
-                <span class="badge bg-light text-dark border">${dateDisplay}</span>
+                <span class="badge-custom badge-date">${dateDisplay}</span>
             </td>
             <td data-label="Amount">
-                <span class="fw-bold text-dark fs-5">&#8377;${(item.amount || 0).toLocaleString('en-IN')}</span>
+                <span class="fw-bold text-dark fs-6">&#8377;${(item.amount || 0).toLocaleString('en-IN')}</span>
             </td>
-             <td data-label="Actions">
-                <div class="btn-group">
-                    <button class="btn btn-sm btn-outline-secondary" onclick="duplicateExpense('${item.id}')" title="Duplicate">
+            <td data-label="Actions" class="text-end">
+                <div class="d-flex justify-content-end gap-1">
+                    <button class="btn-action btn-action-copy" onclick="duplicateExpense('${item.id}')" title="Duplicate">
                         <i class="bi bi-copy"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-primary" onclick="openEditModal('${item.id}')">
-                        <i class="bi bi-pencil-square"></i>
+                    <button class="btn-action btn-action-edit" onclick="openEditModal('${item.id}')" title="Edit">
+                        <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense('${item.id}')">
+                    <button class="btn-action btn-action-delete" onclick="deleteExpense('${item.id}')" title="Delete">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -289,15 +386,8 @@ function renderTable(expenses, total = 0, reset = false) {
         </tr>
     `}).join('');
 
-    // Fix #15: Use total from API to determine true empty state, avoids edge-case with prior search results
-    if (expenses.length === 0 && total === 0) {
-        tbody.innerHTML = window.innerWidth >= 768
-            ? `<tr><td colspan="5" class="text-center py-5 text-muted">No expenses found.</td></tr>`
-            : `<div class="text-center py-5 text-muted">No expenses found.</div>`;
-    } else {
-        if (reset || allItems.length === expenses.length) tbody.innerHTML = html;
-        else tbody.insertAdjacentHTML('beforeend', html);
-    }
+    if (reset || allItems.length === expenses.length) tbody.innerHTML = html;
+    else tbody.insertAdjacentHTML('beforeend', html);
 }
 
 function onFilterChange() {
@@ -310,65 +400,34 @@ function onSearchChange() {
     searchTimeout = setTimeout(() => {
         currentPage = 1;
         loadExpenses(1, true);
-    }, 500);
+    }, 400);
 }
 
-// Actions
+function loadMore() {
+    loadExpenses(currentPage + 1, false);
+}
+
 function exportExcel(mode) {
     let url = `${API_URL}/export`;
     if (mode === 'current' && currentMonthFilter) {
         url += `?month=${encodeURIComponent(currentMonthFilter)}`;
     }
-    // if mode === 'all', no query param needed
     window.location.href = url;
 }
 
-// Fix #5: Define the loadMore function referenced in HTML
-function loadMore() {
-    loadExpenses(currentPage + 1, false);
-}
-
-function openImportModal() {
-    if (importModal) importModal.show();
-    else showToast('Import feature not available', 'warning');
-}
-
-async function uploadImport() {
-    const fileInput = document.getElementById('importFile');
-    const file = fileInput.files[0];
-    if (!file) { showToast('Select a file', 'warning'); return; }
-
-    const formData = new FormData();
-    formData.append('file', file);
-
-    showLoading(true);
-    try {
-        const res = await authFetch(`${API_URL}/import`, { method: 'POST', body: formData });
-        const data = await res.json();
-
-        if (res.ok) {
-            if (importModal) importModal.hide();
-            showToast(data.message, 'success');
-            refreshAll();
-        } else {
-            showToast('Import failed: ' + data.error, 'danger');
-        }
-    } catch (e) { showToast('Error', 'danger'); }
-    finally { showLoading(false); }
-}
-
+/* ── Dynamic Chart Rendering (Theme Adaptive) ── */
 async function renderCharts() {
     const ctx = document.getElementById('expenseChart');
+    const placeholder = document.getElementById('chartPlaceholder');
+    const centerLabel = document.getElementById('chartCenterLabel');
     if (!ctx) return;
 
-    // Fetch stats
     let url = `${API_URL}/stats/category`;
     if (currentMonthFilter) url += `?month=${encodeURIComponent(currentMonthFilter)}`;
 
     try {
         const res = await authFetch(url);
         const data = await res.json();
-        // data: { 'Food': 120, 'Travel': 300 }
 
         const labels = Object.keys(data);
         const values = Object.values(data);
@@ -376,9 +435,24 @@ async function renderCharts() {
         if (chartInstance) chartInstance.destroy();
 
         if (labels.length === 0) {
-            // Maybe show "No Data" placeholder? For now just empty canvas
+            ctx.style.display = 'none';
+            if (placeholder) placeholder.classList.remove('d-none');
+            if (centerLabel) centerLabel.style.display = 'none';
             return;
         }
+
+        ctx.style.display = 'block';
+        if (placeholder) placeholder.classList.add('d-none');
+        if (centerLabel) {
+            centerLabel.style.display = 'flex';
+            const totalSum = values.reduce((a, b) => a + b, 0);
+            document.getElementById('chartCenterValue').textContent = '₹' + totalSum.toLocaleString('en-IN');
+        }
+
+        // Adapt chart aesthetics to match light/dark styling dynamically
+        const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+        const labelColor = currentTheme === 'dark' ? '#94a3b8' : '#64748b';
+        const borderColor = currentTheme === 'dark' ? '#111827' : '#ffffff';
 
         chartInstance = new Chart(ctx, {
             type: 'doughnut',
@@ -387,10 +461,10 @@ async function renderCharts() {
                 datasets: [{
                     data: values,
                     backgroundColor: [
-                        '#6366f1', '#a855f7', '#06b6d4', '#10b981', '#f59e0b',
-                        '#ef4444', '#ec4899', '#3b82f6', '#14b8a6'
+                        '#4f46e5', '#818cf8', '#06b6d4', '#10b981', '#f59e0b',
+                        '#e11d48', '#ec4899', '#3b82f6', '#14b8a6'
                     ],
-                    borderColor: '#ffffff',
+                    borderColor: borderColor,
                     borderWidth: 2,
                     hoverOffset: 6
                 }]
@@ -398,23 +472,117 @@ async function renderCharts() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                cutout: '72%',
                 plugins: {
-                    legend: { 
+                    legend: {
                         position: 'right',
                         labels: {
-                            color: '#64748b',
-                            font: { family: 'Inter', size: 12 }
+                            color: labelColor,
+                            font: { family: 'Inter', size: 11, weight: '500' }
                         }
                     }
                 }
             }
         });
 
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error('Error drawing transaction charts:', e);
+    }
 }
 
+/* ── Drag & Drop Excel Import System ── */
+function setupDragAndDrop() {
+    const dropZone = document.getElementById('dropZone');
+    if (!dropZone) return;
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+        }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        if (files.length) {
+            handleFile(files[0]);
+        }
+    }, false);
+}
+
+function triggerFileInput() {
+    const fileInput = document.getElementById('importFile');
+    if (fileInput) fileInput.click();
+}
+
+function handleFileSelect(event) {
+    const files = event.target.files;
+    if (files.length) {
+        handleFile(files[0]);
+    }
+}
+
+function handleFile(file) {
+    if (!file.name.endsWith('.xlsx')) {
+        showToast('Please upload an Excel file (.xlsx)', 'danger');
+        return;
+    }
+    selectedImportFile = file;
+    const textEl = document.getElementById('dropZoneText');
+    if (textEl) {
+        textEl.textContent = `Selected: ${file.name}`;
+        textEl.style.color = 'var(--primary-color)';
+    }
+}
+
+function openImportModal() {
+    selectedImportFile = null;
+    const textEl = document.getElementById('dropZoneText');
+    if (textEl) {
+        textEl.textContent = 'Drag & Drop file here';
+        textEl.style.color = '';
+    }
+    importModal.show();
+}
+
+async function uploadImport() {
+    if (!selectedImportFile) {
+        showToast('Please select or drop a file to import', 'warning');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedImportFile);
+
+    showLoading(true);
+    try {
+        const res = await authFetch(`${API_URL}/import`, { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (res.ok) {
+            importModal.hide();
+            showToast(data.message, 'success');
+            refreshAll();
+        } else {
+            showToast('Import failed: ' + data.error, 'danger');
+        }
+    } catch (e) {
+        showToast('Spreadsheet upload failed due to network error', 'danger');
+    } finally {
+        showLoading(false);
+    }
+}
+
+/* ── Transaction CRUD Actions ── */
 function openSalaryModal() {
-    // Fix #4 / #11: Use inline date formatting instead of the missing formatDate() function
     const now = new Date();
     const month = currentMonthFilter || now.toLocaleString('en-IN', { month: 'short', year: 'numeric' });
     document.getElementById('salaryMonthLabel').textContent = month;
@@ -425,7 +593,10 @@ function openSalaryModal() {
 async function saveSalary() {
     const amount = document.getElementById('salaryInput').value;
     const month = document.getElementById('salaryMonthLabel').textContent;
-    if (!amount) { showToast('Invalid amount', 'warning'); return; }
+    if (!amount) {
+        showToast('Please insert a valid salary amount', 'warning');
+        return;
+    }
 
     showLoading(true);
     try {
@@ -436,9 +607,12 @@ async function saveSalary() {
         });
         salaryModal.hide();
         loadStats();
-        showToast('Salary saved', 'success');
-    } catch (e) { showToast('Error', 'danger'); }
-    finally { showLoading(false); }
+        showToast('Salary setting saved successfully', 'success');
+    } catch (e) {
+        showToast('Failed to save salary details', 'danger');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function openAddModal() {
@@ -446,7 +620,7 @@ function openAddModal() {
     document.getElementById('expenseForm').reset();
     document.getElementById('expenseId').value = '';
 
-    // Set Default Date to Today
+    // Automatically select today's date in local calendar
     document.getElementById('itemDate').valueAsDate = new Date();
     document.getElementById('itemCategory').value = 'General';
 
@@ -454,21 +628,17 @@ function openAddModal() {
 }
 
 function duplicateExpense(id) {
-    // Fix #6: id is passed as a string (quoted in onclick) — find by string equality
     const item = allItems.find(e => e.id === id);
     if (!item) return;
 
     openAddModal();
-    // Pre-fill
     document.getElementById('itemName').value = item.item;
     document.getElementById('itemAmount').value = item.amount;
     document.getElementById('itemCategory').value = item.category || 'General';
-    // Date stays today
-    showToast('Duplicate info loaded', 'info');
+    showToast('Duplicate transaction details loaded', 'success');
 }
 
 function openEditModal(id) {
-    // Fix #6: id is passed as a string (quoted in onclick)
     const item = allItems.find(e => e.id === id);
     if (!item) return;
     document.getElementById('modalTitle').textContent = 'Edit Expense';
@@ -480,7 +650,7 @@ function openEditModal(id) {
     if (item.date) {
         document.getElementById('itemDate').value = item.date;
     } else {
-        document.getElementById('itemDate').valueAsDate = new Date(); // fallback
+        document.getElementById('itemDate').valueAsDate = new Date();
     }
 
     expenseModal.show();
@@ -491,10 +661,11 @@ async function saveExpense() {
     const item = document.getElementById('itemName').value;
     const amount = document.getElementById('itemAmount').value;
     const category = document.getElementById('itemCategory').value;
-    const date = document.getElementById('itemDate').value; // YYYY-MM-DD
+    const date = document.getElementById('itemDate').value;
 
     if (!item || !amount || !date) {
-        showToast('Fill all fields', 'warning'); return;
+        showToast('Please fill in all transaction fields', 'warning');
+        return;
     }
 
     showLoading(true);
@@ -503,40 +674,53 @@ async function saveExpense() {
     const url = id ? `${API_URL}/expenses/${id}` : `${API_URL}/expenses`;
 
     try {
-        await authFetch(url, {
+        const res = await authFetch(url, {
             method: method,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         });
-        expenseModal.hide();
-        showToast('Saved', 'success');
-        refreshAll();
+        
+        if (res.ok) {
+            expenseModal.hide();
+            showToast(id ? 'Transaction updated' : 'Transaction created', 'success');
+            refreshAll();
+        } else {
+            const data = await res.json();
+            showToast(data.error || 'Failed to save transaction', 'danger');
+        }
     } catch (e) {
-        showToast('Error', 'danger');
+        showToast('Network error while logging expense', 'danger');
     } finally {
         showLoading(false);
     }
 }
 
 async function deleteExpense(id) {
-    if (!confirm('Delete?')) return;
+    if (!confirm('Are you sure you want to delete this expense?')) return;
     showLoading(true);
     try {
         await authFetch(`${API_URL}/expenses/${id}`, { method: 'DELETE' });
-        showToast('Deleted', 'success');
+        showToast('Transaction deleted', 'success');
         refreshAll();
-    } catch (e) { showToast('Error', 'danger'); }
-    finally { showLoading(false); }
+    } catch (e) {
+        showToast('Network error deleting transaction', 'danger');
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function confirmClearAll() {
-    if (!confirm('WARNING: ERASE ALL?')) return;
+    if (!confirm('WARNING: Are you sure you want to permanently erase ALL data? This operation cannot be undone.')) return;
     showLoading(true);
     try {
         await authFetch(`${API_URL}/expenses`, { method: 'DELETE' });
+        showToast('All transactions erased', 'success');
         refreshAll();
-    } catch (e) { showToast('Error', 'danger'); }
-    finally { showLoading(false); }
+    } catch (e) {
+        showToast('Network error while erasing database', 'danger');
+    } finally {
+        showLoading(false);
+    }
 }
 
 function showLoading(show) {
@@ -546,11 +730,12 @@ function showLoading(show) {
 
 function showToast(msg, type = 'primary') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
     const id = 'toast_' + Date.now();
     const html = `
-        <div id="${id}" class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+        <div id="${id}" class="toast align-items-center text-white bg-${type} border-0 shadow-lg" role="alert" aria-live="assertive" aria-atomic="true">
             <div class="d-flex">
-                <div class="toast-body">${msg}</div>
+                <div class="toast-body fw-medium">${msg}</div>
                 <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
             </div>
         </div>

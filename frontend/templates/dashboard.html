@@ -1,175 +1,215 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0">
     <title>Padharia Expense Tracker</title>
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='rupee.png') }}">
-    <!-- Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <!-- Bootstrap 5 -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
-    <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        .category-list-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.5rem;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .category-list-item:last-child {
-            border-bottom: none;
-        }
-    </style>
-
-    <!-- Custom CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 
 <body>
 
+    <!-- Global Loading Overlay -->
     <div id="loadingOverlay">
         <div class="spinner-border text-primary" role="status">
             <span class="visually-hidden">Loading...</span>
         </div>
     </div>
 
+    <!-- Toast Notification Hub -->
     <div id="toastContainer" class="toast-container"></div>
 
-    <!-- Navbar -->
-    <nav class="navbar navbar-light bg-white border-bottom fixed-top">
-        <div class="container-fluid px-3 flex-wrap">
-            <a class="navbar-brand fw-bold text-primary-custom d-flex align-items-center me-auto" href="#">
-                <img src="{{ url_for('static', filename='rupee.png') }}" alt="Logo" width="30" height="30" class="me-2">
-                Padharia Expense Tracker
+    <!-- Header Navbar -->
+    <nav class="navbar navbar-light fixed-top">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand d-flex align-items-center" href="#">
+                <img src="{{ url_for('static', filename='rupee.png') }}" alt="Logo" width="32" height="32" class="me-2">
+                Padharia ET
             </a>
 
-            <div class="d-flex align-items-center gap-2 mt-2 mt-md-0 order-2 order-md-1">
-                <select id="monthFilter" class="form-select form-select-sm" style="max-width: 140px;"
-                    onchange="onFilterChange()">
-                    <!-- Dynamic -->
-                </select>
-                <div class="dropdown d-inline-block">
-                    <button class="btn btn-sm btn-outline-success dropdown-toggle" type="button"
-                        data-bs-toggle="dropdown">
-                        <i class="bi bi-file-earmark-excel me-1"></i>
-                        <span class="d-none d-md-inline">Download</span>
-                        <span class="d-md-none"><i class="bi bi-download"></i></span>
-                    </button>
-                    <ul class="dropdown-menu">
-                        <li><a class="dropdown-item" href="#" onclick="exportExcel('current')">Current View
-                                (Filtered)</a></li>
-                        <li><a class="dropdown-item" href="#" onclick="exportExcel('all')">All Data</a></li>
-                    </ul>
+            <!-- Database Online Status Badge -->
+            <div id="dbStatusBadge" class="sync-badge sync-online d-none d-md-inline-flex me-auto">Online</div>
+
+            <div class="d-flex align-items-center gap-2">
+                <!-- Theme Switcher Toggle -->
+                <div class="theme-switch" onclick="toggleTheme()" title="Switch Light/Dark Mode">
+                    <i class="bi bi-sun-fill" id="themeIcon"></i>
                 </div>
-            </div>
 
-            <div class="mt-2 mt-md-0 ms-md-3 search-container order-3 order-md-2">
-                <input type="text" id="searchInput" class="form-control form-control-sm"
-                    placeholder="Search expenses..." onkeyup="onSearchChange()">
-            </div>
-
-            <!-- User Chip + Logout -->
-            <div class="d-flex align-items-center gap-2 ms-md-3 mt-2 mt-md-0 order-1 order-md-3">
                 <div id="adminLink" style="display:none">
-                    <a href="/admin" class="btn btn-sm btn-outline-primary">
-                        <i class="bi bi-shield-fill me-1"></i><span class="d-none d-md-inline">Admin</span>
+                    <a href="/admin" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                        <i class="bi bi-shield-fill me-1"></i>Admin
                     </a>
                 </div>
-                <div class="d-flex align-items-center gap-2" id="userChip">
+
+                <!-- Profile avatar chip -->
+                <div class="d-flex align-items-center gap-2 border rounded-pill p-1 pe-3" id="userChip">
                     <div id="userAvatar" style="
-                        width:32px;height:32px;border-radius:50%;
-                        background:linear-gradient(135deg,#4f46e5,#818cf8);
+                        width:28px;height:28px;border-radius:50%;
+                        background:linear-gradient(135deg,var(--primary-color),var(--secondary-color));
                         display:flex;align-items:center;justify-content:center;
-                        color:#fff;font-weight:700;font-size:0.8rem;flex-shrink:0;">A</div>
-                    <span id="userName" class="fw-semibold d-none d-md-inline" style="font-size:0.88rem;">User</span>
+                        color:#fff;font-weight:700;font-size:0.75rem;flex-shrink:0;">A</div>
+                    <span id="userName" class="fw-semibold d-none d-md-inline" style="font-size:0.8rem;">User</span>
                 </div>
-                <button class="btn btn-sm btn-outline-secondary" onclick="doLogout()" title="Logout">
+
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" onclick="doLogout()" title="Logout" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;">
                     <i class="bi bi-box-arrow-right"></i>
                 </button>
             </div>
         </div>
     </nav>
 
-    <div class="container py-4">
-
-        <!-- Logic Cards Row -->
-        <div class="row g-3 mb-4">
-            <!-- 1. Previous Balance -->
-            <div class="col-6 col-md-3 col-lg-3">
-                <div class="stat-card p-3 card-prev d-flex flex-column justify-content-center h-100">
-                    <div class="stat-label text-warning text-uppercase fw-bold small">PREV BALANCE</div>
-                    <div class="stat-value fw-bold text-dark mt-1" id="prevBal">...</div>
-                </div>
-            </div>
-
-            <!-- 2. Salary -->
-            <div class="col-6 col-md-3 col-lg-3">
-                <div
-                    class="stat-card p-3 card-salary d-flex flex-column justify-content-center h-100 position-relative">
-                    <div class="d-flex justify-content-between align-items-center w-100">
-                        <div class="stat-label text-primary text-uppercase fw-bold small">SALARY</div>
-                        <i class="bi bi-pencil-fill text-muted cursor-pointer p-1 rounded hover-bg"
-                            style="cursor: pointer;" onclick="openSalaryModal()" title="Edit Salary"></i>
+    <!-- Main Container -->
+    <div class="container-fluid px-4">
+        <div class="desktop-grid">
+            
+            <!-- COLUMN 1: SIDEBAR (Stats Cards + Chart + Category Manager) -->
+            <div class="d-flex flex-column gap-3">
+                
+                <!-- Filter Dropdown & Sync Notification -->
+                <div class="card p-3 border-0">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="text-muted small fw-bold uppercase">FILTERS</span>
+                        <div id="dbStatusBadgeMobile" class="sync-badge sync-online d-md-none">Online</div>
                     </div>
-                    <div class="stat-value fw-bold text-dark mt-1" id="salaryAmount">...</div>
+                    <select id="monthFilter" class="form-select" onchange="onFilterChange()">
+                        <!-- Dynamic Month Load -->
+                    </select>
                 </div>
-            </div>
 
-            <!-- 3. Expenses -->
-            <div class="col-6 col-md-3 col-lg-3">
-                <div class="stat-card p-3 card-expense d-flex flex-column justify-content-center h-100">
-                    <div class="stat-label text-danger text-uppercase fw-bold small">EXPENSES</div>
-                    <div class="stat-value fw-bold text-dark mt-1" id="expensesAmount">...</div>
-                </div>
-            </div>
-
-            <!-- 4. Remaining Balance -->
-            <div class="col-6 col-md-3 col-lg-3">
-                <div class="stat-card p-3 card-remaining d-flex flex-column justify-content-center h-100">
-                    <div class="stat-label text-success text-uppercase fw-bold small">REMAINING</div>
-                    <div class="stat-value fw-bold text-dark mt-1" id="remainingBal">...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Charts Section -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <div class="card p-3 shadow-sm border-0">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="fw-bold text-muted mb-0">SPENDING BREAKDOWN</h6>
+                <!-- Multi-grid Financial Cards -->
+                <div class="row g-2">
+                    <div class="col-6">
+                        <div class="stat-card card-prev d-flex align-items-center gap-3">
+                            <div class="stat-icon-wrap bg-prev-soft text-prev">
+                                <i class="bi bi-clock-history"></i>
+                            </div>
+                            <div>
+                                <div class="stat-label">Prev Balance</div>
+                                <div class="stat-value" id="prevBal">...</div>
+                            </div>
+                        </div>
                     </div>
-                    <div style="max-height: 300px; position: relative;">
+                    <div class="col-6">
+                        <div class="stat-card card-salary d-flex align-items-center gap-3 position-relative">
+                            <div class="stat-icon-wrap bg-salary-soft text-salary">
+                                <i class="bi bi-wallet2"></i>
+                            </div>
+                            <div>
+                                <div class="d-flex align-items-center gap-1">
+                                    <div class="stat-label">Salary</div>
+                                    <i class="bi bi-pencil text-muted cursor-pointer p-1 rounded hover-bg" onclick="openSalaryModal()" title="Edit Salary" style="font-size: 0.75rem;"></i>
+                                </div>
+                                <div class="stat-value" id="salaryAmount">...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card card-expense d-flex align-items-center gap-3">
+                            <div class="stat-icon-wrap bg-expense-soft text-expense">
+                                <i class="bi bi-credit-card"></i>
+                            </div>
+                            <div>
+                                <div class="stat-label">Expenses</div>
+                                <div class="stat-value" id="expensesAmount">...</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="stat-card card-remaining d-flex align-items-center gap-3">
+                            <div class="stat-icon-wrap bg-remaining-soft text-remaining">
+                                <i class="bi bi-cash-coin"></i>
+                            </div>
+                            <div>
+                                <div class="stat-label">Remaining</div>
+                                <div class="stat-value" id="remainingBal">...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Doughnut Chart Container -->
+                <div class="card p-3 border-0">
+                    <h6 class="fw-bold text-muted mb-3 small tracking-wide">SPENDING BREAKDOWN</h6>
+                    <div style="height: 250px; position: relative;" class="chart-container-relative">
                         <canvas id="expenseChart"></canvas>
+                        <div id="chartCenterLabel" class="chart-center-label d-flex flex-column align-items-center justify-content-center position-absolute start-50 top-50 translate-middle">
+                            <span class="center-label-title text-muted">Total</span>
+                            <span class="center-label-value fw-bold" id="chartCenterValue">₹0</span>
+                        </div>
+                        <div id="chartPlaceholder" class="empty-state d-none position-absolute w-100 h-100 top-0 start-0 bg-transparent flex-column align-items-center justify-content-center">
+                            <i class="bi bi-pie-chart text-muted mb-2" style="font-size: 2.2rem; opacity: 0.5;"></i>
+                            <div class="fw-bold text-muted small">No visual data</div>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>
 
-        <!-- Main Content -->
-        <div class="row mb-4">
-            <div class="col-12">
-                <!-- Actions -->
-                <div class="d-none d-md-flex justify-content-end mb-3 gap-2">
-                    <button class="btn btn-primary-custom" onclick="openAddModal()">
-                        <i class="bi bi-plus-lg me-2"></i>Add Expense
-                    </button>
-                    <button class="btn btn-outline-danger" onclick="confirmClearAll()">
-                        <i class="bi bi-trash"></i>
-                    </button>
+                <!-- Category Manager Access -->
+                <div class="card p-3 border-0">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h6 class="fw-bold text-muted mb-0 small tracking-wide">CATEGORIES</h6>
+                        <button class="btn btn-sm btn-light border" onclick="openCategoryModal()" title="Manage Categories">
+                            <i class="bi bi-gear-fill me-1"></i>Manage
+                        </button>
+                    </div>
                 </div>
 
-                <!-- Transactions -->
-                <div class="main-card">
-                    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-white">
+            </div>
+
+            <!-- COLUMN 2: WORKSPACE (Search Filters + Large Transactions Grid) -->
+            <div class="d-flex flex-column gap-3">
+                
+                <!-- Secondary Search Panel -->
+                <div class="card p-3 border-0 d-flex flex-row align-items-center gap-3 flex-wrap">
+                    
+                    <div class="search-container flex-grow-1">
+                        <div class="position-relative">
+                            <input type="text" id="searchInput" class="form-control form-control-sm ps-5" placeholder="Search item, merchant..." onkeyup="onSearchChange()">
+                            <i class="bi bi-search text-muted position-absolute start-0 top-50 translate-middle-y ms-3" style="font-size: 0.9rem;"></i>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2">
+                        <!-- Import Button -->
+                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="openImportModal()">
+                            <i class="bi bi-file-earmark-arrow-up me-1"></i>Import Excel
+                        </button>
+
+                        <!-- Download Spreadsheet Dropdown -->
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-outline-success dropdown-toggle rounded-pill px-3" type="button" data-bs-toggle="dropdown">
+                                <i class="bi bi-file-earmark-excel me-1"></i>Download
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" onclick="exportExcel('current')">Current view (Filtered)</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="exportExcel('all')">All data</a></li>
+                            </ul>
+                        </div>
+
+                        <!-- Erase Actions -->
+                        <button class="btn btn-sm btn-outline-danger rounded-pill px-3 d-none d-md-inline-block" onclick="confirmClearAll()" title="Erase All Data">
+                            <i class="bi bi-trash me-1"></i>Clear all
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Transaction card table -->
+                <div class="main-card border-0">
+                    <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-transparent">
                         <h5 class="fw-bold mb-0">Transactions</h5>
-                        <button class="btn btn-sm text-danger d-md-none" onclick="confirmClearAll()">Clear All</button>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-primary-custom rounded-pill" onclick="openAddModal()">
+                                <i class="bi bi-plus-lg me-1"></i>Add Expense
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger rounded-pill d-md-none" onclick="confirmClearAll()">Clear all</button>
+                        </div>
                     </div>
 
                     <div class="table-responsive">
@@ -184,19 +224,33 @@
                                 </tr>
                             </thead>
                             <tbody id="expenseList">
-                                <!-- Items rendered here -->
+                                <!-- Rendered Transaction Rows -->
                             </tbody>
                         </table>
                     </div>
 
-                    <div class="p-3 text-center border-top bg-white">
-                        <button id="loadMoreBtn" class="btn btn-sm btn-outline-primary" onclick="loadMore()">Load
-                            More</button>
+                    <!-- Custom Visual empty state wrapper inside table -->
+                    <div id="tableEmptyState" class="empty-state d-none">
+                        <i class="bi bi-receipt-cutoff empty-state-icon"></i>
+                        <h6 class="empty-state-title">No expenses found</h6>
+                        <p class="empty-state-desc">Get started by logging your first expense or importing an Excel sheet.</p>
+                    </div>
+
+                    <!-- Pagination and Load More controls -->
+                    <div class="p-3 text-center border-top bg-transparent">
+                        <button id="loadMoreBtn" class="btn btn-sm btn-outline-primary rounded-pill px-4" onclick="loadMore()">Load more</button>
                         <span id="pageInfo" class="ms-2 text-muted small"></span>
                     </div>
                 </div>
+
             </div>
+
         </div>
+    </div>
+
+    <!-- Float button on mobile only -->
+    <div class="fab d-md-none" onclick="openAddModal()">
+        <i class="bi bi-plus-lg"></i>
     </div>
 
     <!-- Salary Modal -->
@@ -209,18 +263,16 @@
                 </div>
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold">FOR <span
-                                id="salaryMonthLabel"></span></label>
+                        <label class="form-label text-muted small fw-bold">FOR <span id="salaryMonthLabel"></span></label>
                         <input type="number" class="form-control" id="salaryInput" placeholder="Enter Amount">
                     </div>
-                    <button type="button" class="btn btn-primary-custom w-100" onclick="saveSalary()">Save
-                        Salary</button>
+                    <button type="button" class="btn btn-primary-custom w-100" onclick="saveSalary()">Save Salary</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Add/Edit Modal -->
+    <!-- Add/Edit Transaction Modal -->
     <div class="modal fade" id="expenseModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
@@ -233,16 +285,15 @@
                         <input type="hidden" id="expenseId">
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">ITEM NAME</label>
-                            <input type="text" class="form-control" id="itemName" required placeholder="e.g. Grocery">
+                            <input type="text" class="form-control" id="itemName" required placeholder="e.g. Dribbble Subscription">
                         </div>
                         <div class="mb-3">
                             <label class="form-label text-muted small fw-bold">CATEGORY</label>
                             <div class="input-group">
                                 <select class="form-select" id="itemCategory" required>
-                                    <!-- Dynamic -->
+                                    <!-- Loaded categories -->
                                 </select>
-                                <button class="btn btn-outline-secondary" type="button" onclick="openCategoryModal()"
-                                    title="Manage Categories">
+                                <button class="btn btn-outline-secondary" type="button" onclick="openCategoryModal()" title="Manage Categories">
                                     <i class="bi bi-gear"></i>
                                 </button>
                             </div>
@@ -250,8 +301,7 @@
                         <div class="row">
                             <div class="col-6 mb-3">
                                 <label class="form-label text-muted small fw-bold">AMOUNT (₹)</label>
-                                <input type="number" class="form-control" id="itemAmount" step="0.01" required
-                                    placeholder="0.00">
+                                <input type="number" class="form-control" id="itemAmount" step="0.01" required placeholder="0.00">
                             </div>
                             <div class="col-6 mb-3">
                                 <label class="form-label text-muted small fw-bold">DATE</label>
@@ -261,36 +311,41 @@
                     </form>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary-custom px-4" onclick="saveExpense()">Save</button>
+                    <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary-custom rounded-pill px-4" onclick="saveExpense()">Save</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Import Modal (Fix #2: element was missing, causing JS crash on load) -->
+    <!-- Drag-and-Drop Import Modal -->
     <div class="modal fade" id="importModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title fw-bold">Import Expenses</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="text-muted small">Upload an Excel file (.xlsx) with columns: Date, Item, Category, Amount.</p>
-                    <div class="mb-3">
-                        <label class="form-label text-muted small fw-bold">SELECT FILE</label>
-                        <input type="file" class="form-control" id="importFile" accept=".xlsx">
+                    <p class="text-muted small">Select or drop an Excel spreadsheet (.xlsx) with columns: <strong>Date, Item, Category, Amount</strong>.</p>
+                    
+                    <!-- Drag and Drop Zone Area -->
+                    <div id="dropZone" class="import-upload-zone mb-3" onclick="triggerFileInput()">
+                        <i class="bi bi-file-earmark-arrow-up-fill"></i>
+                        <h6 class="fw-bold mb-1" id="dropZoneText">Drag & Drop file here</h6>
+                        <span class="text-muted small">or click to browse local files</span>
+                        <input type="file" id="importFile" accept=".xlsx" style="display: none;" onchange="handleFileSelect(event)">
                     </div>
+
                     <button type="button" class="btn btn-primary-custom w-100" onclick="uploadImport()">
-                        <i class="bi bi-upload me-2"></i>Upload
+                        <i class="bi bi-upload me-2"></i>Upload File
                     </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Category Modal -->
+    <!-- Category Manager Modal -->
     <div class="modal fade" id="categoryModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-sm">
             <div class="modal-content">
@@ -306,15 +361,11 @@
                         </button>
                     </div>
                     <div id="categoryList" style="max-height: 300px; overflow-y: auto;">
-                        <!-- Loading... -->
+                        <!-- Dynamically loaded list of categories -->
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="fab d-md-none" onclick="openAddModal()">
-        <i class="bi bi-plus-lg"></i>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

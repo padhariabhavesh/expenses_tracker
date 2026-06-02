@@ -305,8 +305,10 @@
 </div>
 
 <!-- Login Panel -->
+<!-- Login Panel -->
 <div class="panel">
-    <div class="form-box">
+    <!-- Login Form -->
+    <div class="form-box" id="loginFormBox">
         <div class="form-header">
             <h2>Welcome back 👋</h2>
             <p>Sign in to continue to your dashboard</p>
@@ -335,6 +337,7 @@
             <label>
                 <input type="checkbox" id="rememberMe"> Remember me
             </label>
+            <a href="#" onclick="showResetForm(event)" style="color: var(--primary); text-decoration: none; font-size: 0.88rem; font-weight: 500;">Forgot password?</a>
         </div>
 
         <button class="btn-primary" id="loginBtn" onclick="doLogin()">
@@ -345,6 +348,50 @@
 
         <div class="footer-link">
             <a href="/register">Create a free account</a>
+        </div>
+    </div>
+
+    <!-- Reset Form -->
+    <div class="form-box" id="resetFormBox" style="display: none;">
+        <div class="form-header">
+            <h2>Reset Password 🔒</h2>
+            <p>Enter your username and email to set a new password</p>
+        </div>
+
+        <div id="resetAlertBox" class="alert"></div>
+
+        <div class="form-group">
+            <label>Username</label>
+            <div class="input-wrap">
+                <i class="bi bi-person"></i>
+                <input type="text" id="resetUsername" placeholder="e.g. Bhavesh Padharia">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Registered Email</label>
+            <div class="input-wrap">
+                <i class="bi bi-envelope"></i>
+                <input type="email" id="resetEmail" placeholder="e.g. name@example.com">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>New Password</label>
+            <div class="input-wrap">
+                <i class="bi bi-lock"></i>
+                <input type="password" id="resetNewPassword" placeholder="Min 6 characters">
+            </div>
+        </div>
+
+        <button class="btn-primary" id="resetBtn" onclick="doResetPassword()">
+            Reset Password
+        </button>
+
+        <div class="divider"><span>Remembered your password?</span></div>
+
+        <div class="footer-link">
+            <a href="#" onclick="showLoginForm(event)">Back to Sign In</a>
         </div>
     </div>
 </div>
@@ -445,6 +492,78 @@
             btn.disabled = false;
             btn.innerHTML = 'Sign In';
             localStorage.removeItem('autoLoginActive');
+        }
+    }
+
+    function showResetForm(e) {
+        if (e) e.preventDefault();
+        document.getElementById('loginFormBox').style.display = 'none';
+        document.getElementById('resetFormBox').style.display = 'block';
+        hideAlert();
+        hideResetAlert();
+    }
+
+    function showLoginForm(e) {
+        if (e) e.preventDefault();
+        document.getElementById('resetFormBox').style.display = 'none';
+        document.getElementById('loginFormBox').style.display = 'block';
+        hideAlert();
+        hideResetAlert();
+    }
+
+    function showResetAlert(msg, type = 'danger') {
+        const el = document.getElementById('resetAlertBox');
+        el.className = `alert alert-${type} show`;
+        el.textContent = msg;
+    }
+
+    function hideResetAlert() {
+        const el = document.getElementById('resetAlertBox');
+        if (el) el.className = 'alert';
+    }
+
+    async function doResetPassword() {
+        hideResetAlert();
+        const username = document.getElementById('resetUsername').value.trim();
+        const email = document.getElementById('resetEmail').value.trim();
+        const new_password = document.getElementById('resetNewPassword').value;
+        const btn = document.getElementById('resetBtn');
+
+        if (!username || !email || !new_password) {
+            showResetAlert('Please fill in all fields');
+            return;
+        }
+
+        if (new_password.length < 6) {
+            showResetAlert('Password must be at least 6 characters');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="btn-spinner"></span>Resetting…';
+
+        try {
+            const res = await fetch(`${API}/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, email, new_password })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                showResetAlert('Password reset successful! Redirecting to login…', 'success');
+                setTimeout(() => {
+                    document.getElementById('loginUsername').value = username;
+                    document.getElementById('loginPassword').value = '';
+                    showLoginForm();
+                }, 1500);
+            } else {
+                showResetAlert(data.error || 'Password reset failed');
+            }
+        } catch (e) {
+            showResetAlert('Network error — is the server running?');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = 'Reset Password';
         }
     }
 </script>
