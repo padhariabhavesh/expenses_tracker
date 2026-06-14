@@ -146,6 +146,9 @@ def heartbeat():
     if db_service.is_online:
         try:
             db_service.sync_offline_data()
+            uid = current_user_id()
+            if uid:
+                db_service.sync_down_user_data(uid)
         except Exception as e:
             logging.error(f"Background heartbeat sync failed: {e}")
             
@@ -193,6 +196,12 @@ def auth_register():
     session['username'] = username
     session['role'] = role
 
+    # Cache user data locally
+    try:
+        db_service.sync_down_user_data(user['id'])
+    except Exception as e:
+        logging.error(f"Failed register sync down: {e}")
+
     return jsonify({
         "message": "Registered successfully",
         "role": role,
@@ -222,6 +231,12 @@ def auth_login():
     session['username'] = user['username']
     session['role'] = user['role']
     logging.info(f"User logged in: {username}")
+    
+    # Sync down user data on login
+    try:
+        db_service.sync_down_user_data(user['id'])
+    except Exception as e:
+        logging.error(f"Failed login sync down: {e}")
     
     return jsonify({
         "message": "Login successful",
@@ -389,6 +404,7 @@ def dashboard_stats():
     if db_service.is_online:
         try:
             db_service.sync_offline_data()
+            db_service.sync_down_user_data(uid)
         except Exception as e:
             logging.error(f"Stat-triggered sync error: {e}")
 
